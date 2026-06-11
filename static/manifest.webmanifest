@@ -1,0 +1,11 @@
+{
+  "name": "ELITE — Strength Training",
+  "short_name": "ELITE",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#EEF1F4",
+  "theme_color": "#0FB5AE",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
