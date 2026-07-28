@@ -9,11 +9,14 @@ export const normalizePlan = (p) => ({ ...p, week: 1 });
 
 // recommend a program from the questionnaire answers
 export function recommendPlan(a) {
+  // Each entry keeps the English value *and* a display key. The English one
+  // is what gets sent to /api/plans/generate — the AI prompt and the stored
+  // program stay in one canonical language regardless of the UI locale.
   const byGoal = {
-    muscle:   { name: 'Hypertrophy Split',     goal: 'Hypertrophy',    focus: 'Volume · 6–12 reps' },
-    strength: { name: '5×5 Strength',          goal: 'Max strength',   focus: 'Heavy compounds · 3–6 reps' },
-    lean:     { name: 'Lean & Conditioned',    goal: 'Fat loss',       focus: 'Supersets · short rest' },
-    fit:      { name: 'Full-Body Foundations', goal: 'General fitness',focus: 'Balanced · full body' }
+    muscle:   { name: 'Hypertrophy Split',     goal: 'Hypertrophy',    focus: 'Volume · 6–12 reps',        key: 'muscle' },
+    strength: { name: '5×5 Strength',          goal: 'Max strength',   focus: 'Heavy compounds · 3–6 reps', key: 'strength' },
+    lean:     { name: 'Lean & Conditioned',    goal: 'Fat loss',       focus: 'Supersets · short rest',     key: 'lean' },
+    fit:      { name: 'Full-Body Foundations', goal: 'General fitness',focus: 'Balanced · full body',       key: 'fit' }
   };
   const base = byGoal[a.goal] || byGoal.fit;
   const weeks = a.level === 'beginner' ? 8 : a.level === 'advanced' ? 5 : 6;
@@ -23,6 +26,12 @@ export function recommendPlan(a) {
     goal: base.goal,
     focus: base.focus,
     level: a.level === 'beginner' ? 'Beginner' : a.level === 'advanced' ? 'Advanced' : 'Intermediate',
+    // Display keys — resolved through $t by the plan screen. Premade plans
+    // come from the API without these and fall back to their DB strings.
+    nameKey: `plan.rec.${base.key}Name`,
+    goalKey: `plan.rec.${base.key}Goal`,
+    focusKey: `plan.rec.${base.key}Focus`,
+    levelKey: `plan.q.${a.level === 'beginner' ? 'beginner' : a.level === 'advanced' ? 'advanced' : 'intermediate'}`,
     week: 1,
     totalWeeks: weeks,
     daysPerWeek: a.days,

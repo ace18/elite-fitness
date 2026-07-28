@@ -177,6 +177,20 @@ export const en = {
       lengthTitle: 'Time per session?',
       lengthSub: 'We size each workout to fit.'
     },
+    rec: {
+      muscleName: 'Hypertrophy Split',
+      muscleGoal: 'Hypertrophy',
+      muscleFocus: 'Volume · 6–12 reps',
+      strengthName: '5×5 Strength',
+      strengthGoal: 'Max strength',
+      strengthFocus: 'Heavy compounds · 3–6 reps',
+      leanName: 'Lean & Conditioned',
+      leanGoal: 'Fat loss',
+      leanFocus: 'Supersets · short rest',
+      fitName: 'Full-Body Foundations',
+      fitGoal: 'General fitness',
+      fitFocus: 'Balanced · full body'
+    },
     build: {
       analyzing: 'Analyzing your goals…',
       selecting: 'Selecting the right movements…',

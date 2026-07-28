@@ -40,6 +40,9 @@
   let isLast = $derived(step === PLAN_QUESTIONS.length - 1);
   let recommended = $derived(recommendPlan(ans));
   let plan = $derived(picked || recommended);
+  // The recommended plan carries i18n keys; a premade one carries the DB's
+  // English strings, which stay as-is until the catalogue itself is translated.
+  const shown = (p, keyField, plainField) => (p[keyField] ? $t(p[keyField]) : p[plainField]);
   let pct = $derived((step + 1) / PLAN_QUESTIONS.length);
 
   const close = () => goto('/train');
@@ -127,8 +130,8 @@
   onDestroy(() => clearInterval(cyc));
 
   const doneRows = $derived([
-    [$t('plan.goal'), plan.goal],
-    [$t('plan.experience'), plan.level],
+    [$t('plan.goal'), shown(plan, 'goalKey', 'goal')],
+    [$t('plan.experience'), shown(plan, 'levelKey', 'level')],
     [$t('plan.schedule'), $t('plan.daysPerWeek', { n: plan.daysPerWeek })],
     [$t('plan.sessionLength'), $t('plan.aboutMin', { n: plan.sessionMin })],
     [$t('plan.programLength'), $t('plan.weeks', { n: plan.totalWeeks })]
@@ -211,8 +214,8 @@
       <div style="text-align:center; padding-top:8px;">
         <div class="pop-in" style="width:64px; height:64px; border-radius:50%; margin:0 auto 12px; background:var(--up-tint); display:flex; align-items:center; justify-content:center; font-size:30px;">✨</div>
         <div class="t-label" style="color:var(--brand);">{picked ? $t('plan.selectedPlan') : $t('plan.recommendedPlan')}</div>
-        <div class="t-title" style="font-size:26px; margin-top:4px;">{plan.name}</div>
-        <div class="t-sub" style="font-size:14px; margin-top:3px;">{plan.focus}</div>
+        <div class="t-title" style="font-size:26px; margin-top:4px;">{shown(plan, 'nameKey', 'name')}</div>
+        <div class="t-sub" style="font-size:14px; margin-top:3px;">{shown(plan, 'focusKey', 'focus')}</div>
       </div>
       <div class="card" style="padding:4px 18px;">
         {#each doneRows as r, i}

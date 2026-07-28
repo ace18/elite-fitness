@@ -180,6 +180,20 @@ export const it = {
       lengthTitle: 'Quanto tempo per allenamento?',
       lengthSub: 'Dimensioniamo ogni seduta di conseguenza.'
     },
+    rec: {
+      muscleName: 'Split per ipertrofia',
+      muscleGoal: 'Ipertrofia',
+      muscleFocus: 'Volume · 6–12 ripetizioni',
+      strengthName: 'Forza 5×5',
+      strengthGoal: 'Forza massimale',
+      strengthFocus: 'Fondamentali pesanti · 3–6 ripetizioni',
+      leanName: 'Definizione e condizione',
+      leanGoal: 'Dimagrimento',
+      leanFocus: 'Superserie · recuperi brevi',
+      fitName: 'Fondamenta full-body',
+      fitGoal: 'Forma fisica generale',
+      fitFocus: 'Equilibrato · tutto il corpo'
+    },
     build: {
       analyzing: 'Analizziamo i tuoi obiettivi…',
       selecting: 'Scegliamo gli esercizi giusti…',
