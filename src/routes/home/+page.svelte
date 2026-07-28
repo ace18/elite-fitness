@@ -19,7 +19,10 @@
       goto('/onboarding', { replaceState: true });
       return;
     }
-    user = API.user();
+    user = API.user(); // cached, instant
+    API.refreshUser()
+      .then((u) => (user = u))
+      .catch(() => {}); // guards handle 401; stale cached name is fine otherwise
     reloadAll();
   });
 
@@ -38,7 +41,7 @@
   ];
 </script>
 
-{#if !w || !p}
+{#if w === undefined || p === undefined}
   <Loading>
     {#snippet footer()}<TabBar />{/snippet}
   </Loading>
@@ -75,23 +78,39 @@
       <!-- today's workout hero -->
       <div>
         <div class="t-label" style="margin-bottom:8px; padding-left:2px;">Today's plan</div>
-        <div class="card" style="overflow:hidden; box-shadow:var(--sh-md);">
-          <div style="background:linear-gradient(135deg,var(--brand),var(--brand-press)); padding:18px 18px 20px; color:#fff; position:relative;">
-            <div style="position:absolute; right:-30px; top:-30px; width:140px; height:140px; border-radius:50%; background:rgba(255,255,255,.12);"></div>
-            <div style="position:relative;">
-              <div style="font-size:12px; font-weight:800; letter-spacing:.08em; opacity:.85;">READY WHEN YOU ARE</div>
-              <div class="t-title" style="font-size:27px; margin-top:4px;">{w.name}</div>
-              <div style="font-size:14px; opacity:.9; margin-top:3px;">{w.focus}</div>
-              <div class="row" style="gap:14px; margin-top:14px;">
-                <span style="font-size:13px; font-weight:700;">◳ {w.exercises.length} exercises</span>
-                <span style="font-size:13px; font-weight:700;">◷ ~{w.estMin} min</span>
+        {#if w}
+          <div class="card" style="overflow:hidden; box-shadow:var(--sh-md);">
+            <div style="background:linear-gradient(135deg,var(--brand),var(--brand-press)); padding:18px 18px 20px; color:#fff; position:relative;">
+              <div style="position:absolute; right:-30px; top:-30px; width:140px; height:140px; border-radius:50%; background:rgba(255,255,255,.12);"></div>
+              <div style="position:relative;">
+                <div style="font-size:12px; font-weight:800; letter-spacing:.08em; opacity:.85;">READY WHEN YOU ARE</div>
+                <div class="t-title" style="font-size:27px; margin-top:4px;">{w.name}</div>
+                <div style="font-size:14px; opacity:.9; margin-top:3px;">{w.focus}</div>
+                <div class="row" style="gap:14px; margin-top:14px;">
+                  <span style="font-size:13px; font-weight:700;">◳ {w.exercises.length} exercises</span>
+                  <span style="font-size:13px; font-weight:700;">◷ ~{w.estMin} min</span>
+                </div>
               </div>
             </div>
+            <div style="padding:14px;">
+              <Btn block lg onclick={() => goto('/session')}>Start workout →</Btn>
+            </div>
           </div>
-          <div style="padding:14px;">
-            <Btn block lg onclick={() => goto('/session')}>Start workout →</Btn>
+        {:else}
+          <!-- loaded, but nothing scheduled: rest day, or no program yet -->
+          <div class="card" style="padding:22px 18px; text-align:center;">
+            <div style="font-size:30px;">{p ? '😌' : '✨'}</div>
+            <div class="t-h2" style="font-size:17px; margin-top:8px;">
+              {p ? 'Rest day' : 'No program yet'}
+            </div>
+            <div class="t-sub" style="font-size:13.5px; margin-top:4px;">
+              {p ? 'Nothing scheduled today — recover well.' : 'Pick a plan to get your first workout.'}
+            </div>
+            <div style="margin-top:14px;">
+              <Btn block onclick={() => goto('/plan')}>{p ? 'Browse plans' : 'Choose a plan →'}</Btn>
+            </div>
           </div>
-        </div>
+        {/if}
       </div>
 
       <!-- this week mini stats -->

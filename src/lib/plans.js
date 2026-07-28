@@ -1,13 +1,9 @@
-// plans.js — curated programs, the custom-plan questionnaire, and the
-// recommendation engine that turns answers into a program.
-
-export const PREMADE_PLANS = [
-  { id: 'ppl-hyp',     glyph: '💪', name: 'Push / Pull / Legs',     goal: 'Hypertrophy',     focus: 'Build size with high weekly volume',    level: 'Intermediate', daysPerWeek: 6, sessionMin: 60, totalWeeks: 8, tag: 'Most popular' },
-  { id: 'str-5x5',     glyph: '🏋', name: '5×5 Strength',           goal: 'Max strength',    focus: 'Heavy compounds, simple progression',   level: 'Beginner',     daysPerWeek: 3, sessionMin: 45, totalWeeks: 12 },
-  { id: 'upper-lower', glyph: '🔁', name: 'Upper / Lower',          goal: 'Strength + size', focus: 'Balanced split, four focused days',      level: 'Intermediate', daysPerWeek: 4, sessionMin: 55, totalWeeks: 8 },
-  { id: 'lean-cond',   glyph: '🔥', name: 'Lean & Conditioned',     goal: 'Fat loss',        focus: 'Supersets and short rest to stay lean',  level: 'All levels',   daysPerWeek: 4, sessionMin: 40, totalWeeks: 6 },
-  { id: 'full-body',   glyph: '🌱', name: 'Full-Body Foundations',  goal: 'General fitness', focus: 'Master the basics, train full body',     level: 'Beginner',     daysPerWeek: 3, sessionMin: 35, totalWeeks: 8 }
-];
+// plans.js — the custom-plan questionnaire and the recommendation engine that
+// turns answers into a program.
+//
+// The curated programs used to live here as PREMADE_PLANS. They now come from
+// GET /api/plans (the plan_templates table), so a template added by a
+// migration shows up in the browser without touching this file.
 
 export const normalizePlan = (p) => ({ ...p, week: 1 });
 

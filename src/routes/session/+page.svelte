@@ -4,7 +4,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { API } from '$lib/api.js';
-  import { workout, summary } from '$lib/stores.js';
+  import { workout, program, summary } from '$lib/stores.js';
   import Screen from '$lib/components/ui/Screen.svelte';
   import Btn from '$lib/components/ui/Btn.svelte';
   import Ring from '$lib/components/ui/Ring.svelte';
@@ -12,16 +12,19 @@
   import RPEScale, { rpeColor } from '$lib/components/ui/RPEScale.svelte';
   import Toast from '$lib/components/ui/Toast.svelte';
 
+  // Snapshot at mount. Null when the store hasn't loaded (or the user has no
+  // program) — onMount redirects and the template stays unrendered.
   const w = $workout;
-  const exs = w.exercises;
+  const prog = $program;
+  const exs = w?.exercises ?? [];
   const totalSets = exs.reduce((a, e) => a + e.sets, 0);
 
   let exIndex = $state(0);
   let setIndex = $state(0);
   let ex = $derived(exs[exIndex]);
 
-  let weight = $state(exs[0].suggested);
-  let reps = $state(exs[0].targetReps);
+  let weight = $state(exs[0]?.suggested ?? 0);
+  let reps = $state(exs[0]?.targetReps ?? 8);
   let rpe = $state(null);
   let logged = $state(exs.map(() => []));
   let prs = $state([]);
@@ -39,6 +42,11 @@
   onMount(() => {
     if (!API.isAuthed()) {
       goto('/onboarding', { replaceState: true });
+      return;
+    }
+    // Deep link / refresh straight onto /session: nothing is loaded yet.
+    if (!w || exs.length === 0) {
+      goto('/home', { replaceState: true });
       return;
     }
     elapsedT = setInterval(() => (elapsed = Math.floor((Date.now() - startTime) / 1000)), 1000);
@@ -61,8 +69,8 @@
   });
 
   let doneSets = $derived(logged.reduce((a, l) => a + l.length, 0));
-  let showSuggested = $derived(weight !== ex.suggested);
-  let isLastSet = $derived(setIndex + 1 >= ex.sets);
+  let showSuggested = $derived(weight !== ex?.suggested);
+  let isLastSet = $derived(setIndex + 1 >= (ex?.sets ?? 0));
   let isLastEx = $derived(exIndex + 1 >= exs.length);
   let finishing = $derived(isLastSet && isLastEx);
 
@@ -107,7 +115,26 @@
       const volume = flat.reduce((a, s) => a + s.w * s.r, 0);
       const top = flat.reduce((a, s) => (s.w > a.w ? s : a), flat[0]);
       const rpes = flat.map((s) => s.rpe).filter((x) => x != null);
+      // Per-set rows for the backend (set_logs). exerciseId comes from the
+      // workout the API returned; is_pr is recomputed server-side.
+      const setLog = [];
+      exs.forEach((e, i) => {
+        nl[i].forEach((rec, j) => {
+          setLog.push({
+            exerciseId: e.exerciseId,
+            exerciseName: e.name,
+            setNumber: j + 1,
+            weight: rec.w,
+            reps: rec.r,
+            rpe: rec.rpe
+          });
+        });
+      });
+
       const s = {
+        workoutId: w.id,
+        programId: prog?.id ?? null,
+        setLog,
         name: w.name,
         durationMin: Math.max(1, Math.round((Date.now() - startTime) / 60000)),
         volume: Math.round(volume),
@@ -142,6 +169,7 @@
   let restPct = $derived(restTotal ? rest / restTotal : 0);
 </script>
 
+{#if w && exs.length}
 <div style="position:relative; height:100%;">
   <Screen bg="#F4F6F8">
     {#snippet footer()}
@@ -250,3 +278,4 @@
     </div>
   {/if}
 </div>
+{/if}

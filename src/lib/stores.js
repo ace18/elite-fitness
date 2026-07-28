@@ -1,46 +1,59 @@
-// stores.js — shared app state (Svelte stores). Mirrors the prototype's
-// top-level App state: workout / program / progress, plus the in-flight
-// session summary handed from the Session screen to the Receipt screen.
+// stores.js — shared app state (Svelte stores): workout / program / progress,
+// plus the in-flight session summary handed from the Session screen to the
+// Receipt screen.
+//
+// The three data stores start as `null` (nothing loaded yet) and are filled by
+// reloadAll(). Home / Train / Progress already render <Loading> while they're
+// null; Session redirects if there's no workout.
 
 import { writable } from 'svelte/store';
-import { API } from './api.js';
+import { API, ApiError } from './api.js';
 
-export const workout = writable(API.todaySync());
-export const program = writable(API.programSync());
-export const progress = writable(API.progressSync());
+// `undefined` = not loaded yet (show a spinner).
+// `null`      = loaded, but there's nothing (rest day / no program yet).
+// Screens must distinguish the two or a rest day spins forever.
+export const workout = writable(undefined);
+export const program = writable(undefined);
+export const progress = writable(undefined);
+
+// Last load error, so screens can tell "still loading" from "backend is down".
+export const loadError = writable(null);
 
 // summary produced by a finished session and consumed by /receipt
-export const DEMO_SUMMARY = {
-  name: 'Push Day A',
-  durationMin: 48,
-  volume: 12840,
-  sets: 18,
-  exercises: 5,
-  topSet: '50 kg × 6',
-  avgRpe: 8.1,
-  prs: [{ lift: 'Bench Press', value: '50 kg × 6', fresh: true }],
-  perExercise: [
-    { name: 'Barbell Bench Press',  sets: 4, vol: 4320, last: 42.5, best: 50 },
-    { name: 'Incline DB Press',     sets: 3, vol: 2160, last: 18,   best: 18 },
-    { name: 'Seated Shoulder Press',sets: 3, vol: 2925, last: 30,   best: 32.5 },
-    { name: 'Cable Fly',            sets: 3, vol: 1350, last: 12.5, best: 12.5 },
-    { name: 'Triceps Pushdown',     sets: 3, vol: 2085, last: 25,   best: 27.5 }
-  ]
-};
+export const summary = writable(null);
 
-export const summary = writable(DEMO_SUMMARY);
-
-// refresh helpers (swap mock for real fetch later)
 export async function reloadAll() {
-  workout.set(await API.getTodayWorkout());
-  program.set(await API.getProgram());
-  progress.set(await API.getProgress());
-}
-export async function reloadProgress() {
-  progress.set(await API.getProgress());
+  try {
+    const [w, p, pr] = await Promise.all([
+      API.getTodayWorkout(),
+      API.getProgram(),
+      API.getProgress()
+    ]);
+    workout.set(w);
+    program.set(p);
+    progress.set(pr);
+    loadError.set(null);
+  } catch (e) {
+    // 401 already cleared the session; the route guards handle the redirect.
+    if (e instanceof ApiError && e.status === 401) return;
+    loadError.set(e.message ?? String(e));
+  }
 }
 
-// apply a chosen/built plan as the active program (keeps the weekly schedule)
-export function applyPlan(p) {
-  program.update((prev) => ({ ...prev, ...p, schedule: prev.schedule }));
+export async function reloadProgress() {
+  try {
+    progress.set(await API.getProgress());
+    loadError.set(null);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) return;
+    loadError.set(e.message ?? String(e));
+  }
+}
+
+// Re-read program + today's workout from the server after a plan is chosen or
+// generated, so the weekly schedule reflects what was actually stored.
+export async function applyPlan() {
+  const [p, w] = await Promise.all([API.getProgram(), API.getTodayWorkout()]);
+  program.set(p);
+  workout.set(w);
 }

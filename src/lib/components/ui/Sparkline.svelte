@@ -10,11 +10,19 @@
     sw = 2.4
   } = $props();
 
-  let min = $derived(Math.min(...data));
-  let max = $derived(Math.max(...data));
+  // The API returns null (nothing logged yet) or a 1-point series for a brand
+  // new user; both used to crash here. Render nothing until there are 2 points
+  // to draw a line between.
+  let series = $derived(Array.isArray(data) ? data.filter((v) => typeof v === 'number') : []);
+  let enough = $derived(series.length >= 2);
+
+  let min = $derived(enough ? Math.min(...series) : 0);
+  let max = $derived(enough ? Math.max(...series) : 0);
   let rng = $derived(max - min || 1);
   let pts = $derived(
-    data.map((v, i) => [(i / (data.length - 1)) * w, h - 4 - ((v - min) / rng) * (h - 8)])
+    enough
+      ? series.map((v, i) => [(i / (series.length - 1)) * w, h - 4 - ((v - min) / rng) * (h - 8)])
+      : []
   );
   let line = $derived(pts.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' '));
   let area = $derived(`0,${h} ` + line + ` ${w},${h}`);
@@ -30,11 +38,13 @@
       <stop offset="100%" stop-color={color} stop-opacity="0" />
     </linearGradient>
   </defs>
-  {#if fill}
-    <polygon points={area} fill="url(#{gid})" />
-  {/if}
-  <polyline points={line} fill="none" stroke={color} stroke-width={sw} stroke-linecap="round" stroke-linejoin="round" />
-  {#if dot}
-    <circle cx={last[0]} cy={last[1]} r="3.4" fill="#fff" stroke={color} stroke-width="2.4" />
+  {#if enough}
+    {#if fill}
+      <polygon points={area} fill="url(#{gid})" />
+    {/if}
+    <polyline points={line} fill="none" stroke={color} stroke-width={sw} stroke-linecap="round" stroke-linejoin="round" />
+    {#if dot}
+      <circle cx={last[0]} cy={last[1]} r="3.4" fill="#fff" stroke={color} stroke-width="2.4" />
+    {/if}
   {/if}
 </svg>

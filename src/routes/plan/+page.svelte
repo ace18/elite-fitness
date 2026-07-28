@@ -5,13 +5,27 @@
   import { goto } from '$app/navigation';
   import { API } from '$lib/api.js';
   import { applyPlan } from '$lib/stores.js';
-  import { PREMADE_PLANS, PLAN_QUESTIONS, BUILD_MSGS, recommendPlan, normalizePlan } from '$lib/plans.js';
+  import { PLAN_QUESTIONS, BUILD_MSGS, recommendPlan, normalizePlan } from '$lib/plans.js';
   import Screen from '$lib/components/ui/Screen.svelte';
   import Btn from '$lib/components/ui/Btn.svelte';
   import Ring from '$lib/components/ui/Ring.svelte';
 
-  onMount(() => {
-    if (!API.isAuthed()) goto('/onboarding', { replaceState: true });
+  // The catalogue lives in the DB (plan_templates), not in plans.js — a
+  // hardcoded copy would silently hide any template added by a migration.
+  let premade = $state(null);
+  let plansError = $state('');
+
+  onMount(async () => {
+    if (!API.isAuthed()) {
+      goto('/onboarding', { replaceState: true });
+      return;
+    }
+    try {
+      premade = await API.getPlans();
+    } catch (e) {
+      plansError = e.status === 0 ? 'Backend unreachable.' : e.message;
+      premade = [];
+    }
   });
 
   let phase = $state('browse'); // browse | quiz | building | done
@@ -49,14 +63,30 @@
     if (step === 0) phase = 'browse';
     else step -= 1;
   };
-  const startPlan = () => {
-    applyPlan(plan);
-    close();
+  let saving = $state(false);
+  let error = $state('');
+  // true once the custom plan has actually been generated server-side, so
+  // "Start plan" doesn't try to create it a second time.
+  let generated = $state(false);
+
+  const startPlan = async () => {
+    saving = true;
+    error = '';
+    try {
+      // Premade plans map 1:1 onto the seeded plan_templates rows.
+      if (picked && !generated) await API.setProgram(picked.id);
+      await applyPlan(); // re-read program + today's workout from the server
+      close();
+    } catch (e) {
+      error = e.status === 0 ? 'Backend unreachable.' : `Could not start the plan: ${e.message}`;
+      saving = false;
+    }
   };
 
-  // building animation → done. NOTE: read only `phase` here so the effect
-  // doesn't re-run (and reset its timers) every time buildMsg ticks.
-  let cyc, doneT;
+  // Building phase: run the real AI generation while the messages cycle, and
+  // move to `done` when the server answers (not on a fixed timer — a real
+  // generation takes far longer than the old 2.5s animation).
+  let cyc;
   $effect(() => {
     if (phase !== 'building') return;
     buildMsg = 0;
@@ -65,16 +95,35 @@
       m = Math.min(m + 1, BUILD_MSGS.length - 1);
       buildMsg = m;
     }, 600);
-    doneT = setTimeout(() => (phase = 'done'), 2500);
+
+    let cancelled = false;
+    error = '';
+    API.generatePlan({
+      goal: recommended.goal,
+      level: recommended.level,
+      days: ans.days,
+      length: ans.length
+    })
+      .then(() => {
+        if (cancelled) return;
+        generated = true;
+        phase = 'done';
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        error =
+          e.status === 0
+            ? 'Backend unreachable.'
+            : `Plan generation failed: ${e.message}`;
+        phase = 'quiz';
+      });
+
     return () => {
+      cancelled = true;
       clearInterval(cyc);
-      clearTimeout(doneT);
     };
   });
-  onDestroy(() => {
-    clearInterval(cyc);
-    clearTimeout(doneT);
-  });
+  onDestroy(() => clearInterval(cyc));
 
   const doneRows = $derived([
     ['Goal', plan.goal],
@@ -101,7 +150,12 @@
         </div>
       </div>
       <div style="display:flex; flex-direction:column; gap:12px; margin-top:2px;">
-        {#each PREMADE_PLANS as p (p.id)}
+        {#if premade === null}
+          <div class="t-sub" style="font-size:13.5px; padding:8px 2px;">Loading plans…</div>
+        {:else if plansError}
+          <div class="t-sub" style="font-size:13.5px; color:var(--down, #d1495b); padding:8px 2px;">{plansError}</div>
+        {/if}
+        {#each premade ?? [] as p (p.id)}
           <button class="card premade" onclick={() => choosePremade(p)}
             style="width:100%; text-align:left; border:none; cursor:pointer; padding:16px; display:flex; flex-direction:column; gap:12px; box-shadow:var(--sh-sm); -webkit-tap-highlight-color:transparent;">
             <div class="row" style="gap:13px; align-items:flex-start;">
@@ -145,8 +199,11 @@
   <Screen>
     {#snippet footer()}
       <div style="display:flex; flex-direction:column; gap:10px;">
-        <Btn block lg onclick={startPlan}>Start this plan →</Btn>
+        <Btn block lg onclick={startPlan} disabled={saving}>{saving ? 'Starting…' : 'Start this plan →'}</Btn>
         <button class="btn btn--soft btn--block" onclick={close}>Maybe later</button>
+        {#if error}
+          <p class="t-sub" style="font-size:12.5px; color:var(--down, #d1495b); text-align:center; margin:0;">{error}</p>
+        {/if}
       </div>
     {/snippet}
     <div class="stagger" style="padding:14px 20px 8px; display:flex; flex-direction:column; gap:18px;">
@@ -175,6 +232,9 @@
   <Screen>
     {#snippet footer()}
       <Btn block lg onclick={next} disabled={!answered}>{isLast ? 'Build my plan →' : 'Continue'}</Btn>
+      {#if error}
+        <p class="t-sub" style="font-size:12.5px; color:var(--down, #d1495b); text-align:center; margin:10px 0 0;">{error}</p>
+      {/if}
     {/snippet}
     <div style="padding:4px 20px 0;">
       <div class="row" style="gap:14px;">

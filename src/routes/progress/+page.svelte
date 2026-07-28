@@ -24,7 +24,7 @@
   const heatmap = [0, 1, 3, 5, 6, 8, 9, 10, 12, 13];
 </script>
 
-{#if !p}
+{#if p === undefined}
   <Loading>
     {#snippet footer()}<TabBar />{/snippet}
   </Loading>

@@ -9,24 +9,44 @@
   import RPEScale from '$lib/components/ui/RPEScale.svelte';
 
   onMount(() => {
-    if (!API.isAuthed()) goto('/onboarding', { replaceState: true });
+    if (!API.isAuthed()) {
+      goto('/onboarding', { replaceState: true });
+      return;
+    }
+    // No in-flight session (direct navigation or refresh) — nothing to show.
+    if (!$summary) goto('/home', { replaceState: true });
   });
 
   let s = $derived($summary);
   let sRpe = $state(null);
   let saving = $state(false);
+  let error = $state('');
 
   async function save() {
     saving = true;
-    await API.saveSession({ ...s, sessionRpe: sRpe });
-    await reloadProgress();
-    goto('/home');
+    error = '';
+    try {
+      await API.saveSession({ ...s, sessionRpe: sRpe });
+      await reloadProgress();
+      summary.set(null);
+      goto('/home');
+    } catch (e) {
+      error =
+        e.status === 0
+          ? 'Backend unreachable — your workout is not saved yet.'
+          : `Could not save: ${e.message}`;
+      saving = false;
+    }
   }
 </script>
 
+{#if s}
 <Screen bg="#F4F6F8">
   {#snippet footer()}
     <Btn block lg onclick={save} disabled={saving}>{saving ? 'Saving…' : 'Save & finish'}</Btn>
+    {#if error}
+      <p class="t-sub" style="font-size:12.5px; color:var(--down, #d1495b); text-align:center; margin:10px 0 0;">{error}</p>
+    {/if}
   {/snippet}
   <div style="padding:30px 20px 10px;">
     <!-- hero -->
@@ -92,3 +112,4 @@
     </div>
   </div>
 </Screen>
+{/if}

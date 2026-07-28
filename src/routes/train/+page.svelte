@@ -25,10 +25,21 @@
   let bumps = $derived(w ? w.exercises.filter((e) => e.suggested > e.last).length : 0);
 </script>
 
-{#if !prog || !w}
+{#if prog === undefined || w === undefined}
   <Loading>
     {#snippet footer()}<TabBar />{/snippet}
   </Loading>
+{:else if prog === null}
+  <!-- authenticated but no active program yet -->
+  <Screen footerFlush>
+    {#snippet footer()}<TabBar />{/snippet}
+    <div style="padding:60px 24px; text-align:center;">
+      <div style="font-size:34px;">✨</div>
+      <h1 class="t-title" style="font-size:22px; margin-top:10px;">No program yet</h1>
+      <p class="t-sub" style="font-size:14px; margin-top:6px;">Pick a ready-made plan or build a custom one.</p>
+      <div style="margin-top:18px;"><Btn block lg onclick={() => goto('/plan')}>Choose a plan →</Btn></div>
+    </div>
+  </Screen>
 {:else}
   <Screen footerFlush>
     {#snippet footer()}<TabBar />{/snippet}
@@ -71,6 +82,12 @@
       <!-- NEXT SESSION hero -->
       <div>
         <div class="t-label" style="margin-bottom:8px; padding-left:2px;">Next session</div>
+        {#if !w}
+          <div class="card" style="padding:20px 18px; text-align:center;">
+            <div class="t-h2" style="font-size:16px;">Rest day</div>
+            <div class="t-sub" style="font-size:13px; margin-top:4px;">Nothing scheduled today.</div>
+          </div>
+        {:else}
         <div class="card" style="overflow:hidden; box-shadow:var(--sh-md);">
           <div style="background:linear-gradient(135deg,var(--brand),var(--brand-press)); padding:18px 18px 20px; color:#fff; position:relative;">
             <div style="position:absolute; right:-30px; top:-30px; width:140px; height:140px; border-radius:50%; background:rgba(255,255,255,.12);"></div>
@@ -117,6 +134,7 @@
             <Btn block lg onclick={() => goto('/session')}>Start session →</Btn>
           </div>
         </div>
+        {/if}
       </div>
 
       <!-- this week schedule -->
