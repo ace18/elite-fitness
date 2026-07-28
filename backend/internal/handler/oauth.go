@@ -42,7 +42,7 @@ func (h *OAuthHandler) Start(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "provider")
 	provider, ok := h.registry.Get(name)
 	if !ok {
-		jsonError(w, "unknown provider", http.StatusNotFound)
+		jsonError(w, ErrUnknownProvider, http.StatusNotFound)
 		return
 	}
 
@@ -70,7 +70,7 @@ func (h *OAuthHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "provider")
 	provider, ok := h.registry.Get(name)
 	if !ok {
-		jsonError(w, "unknown provider", http.StatusNotFound)
+		jsonError(w, ErrUnknownProvider, http.StatusNotFound)
 		return
 	}
 

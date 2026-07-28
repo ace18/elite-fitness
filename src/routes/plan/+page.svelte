@@ -6,6 +6,7 @@
   import { API } from '$lib/api.js';
   import { applyPlan } from '$lib/stores.js';
   import { PLAN_QUESTIONS, BUILD_MSGS, recommendPlan, normalizePlan } from '$lib/plans.js';
+  import { t } from '$lib/i18n/index.js';
   import Screen from '$lib/components/ui/Screen.svelte';
   import Btn from '$lib/components/ui/Btn.svelte';
   import Ring from '$lib/components/ui/Ring.svelte';
@@ -23,7 +24,7 @@
     try {
       premade = await API.getPlans();
     } catch (e) {
-      plansError = e.status === 0 ? 'Backend unreachable.' : e.message;
+      plansError = e.status === 0 ? $t('plan.backendDown') : e.message;
       premade = [];
     }
   });
@@ -78,7 +79,7 @@
       await applyPlan(); // re-read program + today's workout from the server
       close();
     } catch (e) {
-      error = e.status === 0 ? 'Backend unreachable.' : `Could not start the plan: ${e.message}`;
+      error = e.status === 0 ? $t('plan.backendDown') : $t('plan.startFailed', { msg: e.message });
       saving = false;
     }
   };
@@ -113,8 +114,8 @@
         if (cancelled) return;
         error =
           e.status === 0
-            ? 'Backend unreachable.'
-            : `Plan generation failed: ${e.message}`;
+            ? $t('plan.backendDown')
+            : $t('plan.generateFailed', { msg: e.message });
         phase = 'quiz';
       });
 
@@ -126,11 +127,11 @@
   onDestroy(() => clearInterval(cyc));
 
   const doneRows = $derived([
-    ['Goal', plan.goal],
-    ['Experience', plan.level],
-    ['Schedule', `${plan.daysPerWeek} days / week`],
-    ['Session length', `~${plan.sessionMin} min`],
-    ['Program length', `${plan.totalWeeks} weeks`]
+    [$t('plan.goal'), plan.goal],
+    [$t('plan.experience'), plan.level],
+    [$t('plan.schedule'), $t('plan.daysPerWeek', { n: plan.daysPerWeek })],
+    [$t('plan.sessionLength'), $t('plan.aboutMin', { n: plan.sessionMin })],
+    [$t('plan.programLength'), $t('plan.weeks', { n: plan.totalWeeks })]
   ]);
 </script>
 
@@ -138,20 +139,20 @@
   <Screen>
     {#snippet footer()}
       <button class="btn btn--soft btn--block btn--lg" onclick={startCustom} style="display:flex; align-items:center; justify-content:center; gap:8px;">
-        <span style="font-size:17px;">✨</span> Build a custom plan
+        <span style="font-size:17px;">✨</span> {$t('plan.buildCustom')}
       </button>
     {/snippet}
     <div class="stagger" style="padding:4px 20px 8px; display:flex; flex-direction:column; gap:16px;">
       <div class="row" style="gap:14px; align-items:flex-start;">
         <button onclick={close} style="width:38px; height:38px; flex:0 0 auto; border-radius:12px; border:none; background:#fff; box-shadow:var(--sh-sm); cursor:pointer; font-size:18px; color:var(--ink2);">‹</button>
         <div style="flex:1;">
-          <h1 class="t-title" style="font-size:26px; margin:0; line-height:1.15;">Choose a plan</h1>
-          <div class="t-sub" style="font-size:14.5px; margin-top:5px;">Start with a proven program, or build one tailored to you.</div>
+          <h1 class="t-title" style="font-size:26px; margin:0; line-height:1.15;">{$t('plan.choosePlan')}</h1>
+          <div class="t-sub" style="font-size:14.5px; margin-top:5px;">{$t('plan.chooseSub')}</div>
         </div>
       </div>
       <div style="display:flex; flex-direction:column; gap:12px; margin-top:2px;">
         {#if premade === null}
-          <div class="t-sub" style="font-size:13.5px; padding:8px 2px;">Loading plans…</div>
+          <div class="t-sub" style="font-size:13.5px; padding:8px 2px;">{$t('plan.loadingPlans')}</div>
         {:else if plansError}
           <div class="t-sub" style="font-size:13.5px; color:var(--down, #d1495b); padding:8px 2px;">{plansError}</div>
         {/if}
@@ -170,7 +171,7 @@
               <span style="font-size:20px; color:var(--ink4); align-self:center;">›</span>
             </div>
             <div class="row" style="gap:7px; flex-wrap:wrap;">
-              {#each [p.goal, `${p.daysPerWeek}×/week`, `~${p.sessionMin} min`, p.level] as s}
+              {#each [p.goal, $t('train.perWeek', { n: p.daysPerWeek }), $t('plan.aboutMin', { n: p.sessionMin }), p.level] as s}
                 <span style="font-size:11.5px; font-weight:700; color:var(--ink2); background:#F1F3F5; padding:5px 10px; border-radius:8px; white-space:nowrap;">{s}</span>
               {/each}
             </div>
@@ -188,9 +189,9 @@
         </Ring>
       </div>
       <div style="text-align:center;">
-        <div class="t-title" style="font-size:22px;">Building your plan</div>
+        <div class="t-title" style="font-size:22px;">{$t('plan.building')}</div>
         {#key buildMsg}
-          <div class="t-sub float-up" style="font-size:14.5px; margin-top:6px;">{BUILD_MSGS[buildMsg]}</div>
+          <div class="t-sub float-up" style="font-size:14.5px; margin-top:6px;">{$t(BUILD_MSGS[buildMsg])}</div>
         {/key}
       </div>
     </div>
@@ -199,8 +200,8 @@
   <Screen>
     {#snippet footer()}
       <div style="display:flex; flex-direction:column; gap:10px;">
-        <Btn block lg onclick={startPlan} disabled={saving}>{saving ? 'Starting…' : 'Start this plan →'}</Btn>
-        <button class="btn btn--soft btn--block" onclick={close}>Maybe later</button>
+        <Btn block lg onclick={startPlan} disabled={saving}>{saving ? $t('plan.starting') : $t('plan.startPlan')}</Btn>
+        <button class="btn btn--soft btn--block" onclick={close}>{$t('plan.maybeLater')}</button>
         {#if error}
           <p class="t-sub" style="font-size:12.5px; color:var(--down, #d1495b); text-align:center; margin:0;">{error}</p>
         {/if}
@@ -209,7 +210,7 @@
     <div class="stagger" style="padding:14px 20px 8px; display:flex; flex-direction:column; gap:18px;">
       <div style="text-align:center; padding-top:8px;">
         <div class="pop-in" style="width:64px; height:64px; border-radius:50%; margin:0 auto 12px; background:var(--up-tint); display:flex; align-items:center; justify-content:center; font-size:30px;">✨</div>
-        <div class="t-label" style="color:var(--brand);">{picked ? 'YOUR SELECTED PLAN' : 'YOUR RECOMMENDED PLAN'}</div>
+        <div class="t-label" style="color:var(--brand);">{picked ? $t('plan.selectedPlan') : $t('plan.recommendedPlan')}</div>
         <div class="t-title" style="font-size:26px; margin-top:4px;">{plan.name}</div>
         <div class="t-sub" style="font-size:14px; margin-top:3px;">{plan.focus}</div>
       </div>
@@ -223,7 +224,7 @@
       </div>
       <div class="row" style="gap:8px; padding:12px 14px; background:var(--brand-tint); border-radius:14px;">
         <span style="font-size:16px;">↻</span>
-        <span class="t-sub" style="font-size:12.5px; font-weight:700; color:var(--brand-ink);">Weights auto-adjust each week based on your logged effort.</span>
+        <span class="t-sub" style="font-size:12.5px; font-weight:700; color:var(--brand-ink);">{$t('plan.autoAdjust')}</span>
       </div>
     </div>
   </Screen>
@@ -231,7 +232,7 @@
   <!-- quiz -->
   <Screen>
     {#snippet footer()}
-      <Btn block lg onclick={next} disabled={!answered}>{isLast ? 'Build my plan →' : 'Continue'}</Btn>
+      <Btn block lg onclick={next} disabled={!answered}>{isLast ? $t('plan.buildMyPlan') : $t('common.continue')}</Btn>
       {#if error}
         <p class="t-sub" style="font-size:12.5px; color:var(--down, #d1495b); text-align:center; margin:10px 0 0;">{error}</p>
       {/if}
@@ -247,8 +248,8 @@
 
       {#key q.key}
         <div class="scr-in" style="margin-top:24px;">
-          <h1 class="t-title" style="font-size:26px; margin:0; line-height:1.15;">{q.title}</h1>
-          <div class="t-sub" style="font-size:14.5px; margin-top:6px;">{q.sub}</div>
+          <h1 class="t-title" style="font-size:26px; margin:0; line-height:1.15;">{$t(q.title)}</h1>
+          <div class="t-sub" style="font-size:14.5px; margin-top:6px;">{$t(q.sub)}</div>
 
           <div style="margin-top:22px;">
             {#if q.kind === 'cards'}
@@ -261,8 +262,8 @@
                       background:{sel ? 'var(--brand-tint)' : '#fff'}; transition:box-shadow .15s, background .15s; -webkit-tap-highlight-color:transparent;">
                     <div style="width:42px; height:42px; flex:0 0 auto; border-radius:13px; display:flex; align-items:center; justify-content:center; background:{sel ? 'var(--brand)' : '#F1F3F5'}; font-size:20px; transition:background .15s;">{o.glyph}</div>
                     <div style="flex:1; min-width:0;">
-                      <div class="t-h2" style="font-size:16px;">{o.title}</div>
-                      <div class="t-sub" style="font-size:13px; margin-top:1px;">{o.desc}</div>
+                      <div class="t-h2" style="font-size:16px;">{$t(o.title)}</div>
+                      <div class="t-sub" style="font-size:13px; margin-top:1px;">{$t(o.desc)}</div>
                     </div>
                     <div style="width:24px; height:24px; flex:0 0 auto; border-radius:50%; display:flex; align-items:center; justify-content:center; background:{sel ? 'var(--brand)' : 'transparent'}; box-shadow:{sel ? 'none' : 'inset 0 0 0 2px var(--line)'};">
                       {#if sel}<span style="color:#fff; font-weight:800; font-size:13px;">✓</span>{/if}
@@ -278,7 +279,7 @@
                     style="border:none; cursor:pointer; border-radius:16px; padding:16px 8px; background:{on ? 'var(--brand)' : '#fff'}; color:{on ? '#fff' : 'var(--ink)'};
                       box-shadow:{on ? 'var(--sh-md)' : 'inset 0 0 0 1.5px var(--line)'}; transition:.15s; -webkit-tap-highlight-color:transparent;">
                     <div class="t-num" style="font-size:24px;">{o.v}</div>
-                    <div style="font-size:11.5px; font-weight:700; opacity:{on ? 0.9 : 0.55}; margin-top:2px;">{o.label || q.unit}</div>
+                    <div style="font-size:11.5px; font-weight:700; opacity:{on ? 0.9 : 0.55}; margin-top:2px;">{$t(o.label || q.unit)}</div>
                   </button>
                 {/each}
               </div>

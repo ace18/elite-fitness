@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import { API } from '$lib/api.js';
   import { progress, reloadProgress } from '$lib/stores.js';
+  import { t } from '$lib/i18n/index.js';
   import Screen from '$lib/components/ui/Screen.svelte';
   import Loading from '$lib/components/ui/Loading.svelte';
   import TabBar from '$lib/components/ui/TabBar.svelte';
@@ -33,10 +34,10 @@
     {#snippet footer()}<TabBar />{/snippet}
     <div class="stagger" style="padding:10px 20px 28px; display:flex; flex-direction:column; gap:14px;">
       <div class="row" style="justify-content:space-between; padding-top:6px;">
-        <h1 class="t-title" style="font-size:28px;">Progress</h1>
+        <h1 class="t-title" style="font-size:28px;">{$t('progress.title')}</h1>
         <div class="seg" style="width:168px;">
-          {#each ['Week', 'Month', 'Year'] as x, i}
-            <button class="seg__btn{i === 1 ? ' seg__btn--on' : ''}">{x}</button>
+          {#each ['week', 'month', 'year'] as x, i}
+            <button class="seg__btn{i === 1 ? ' seg__btn--on' : ''}">{$t(`progress.${x}`)}</button>
           {/each}
         </div>
       </div>
@@ -44,11 +45,11 @@
       <!-- streak / consistency -->
       <div class="card" style="padding:16px; display:flex; align-items:center; gap:16px;">
         <Ring pct={wkPct} size={72} stroke={8}>
-          <span class="t-num" style="font-size:21px;">{p.streak}</span><span class="t-label" style="font-size:8px;">DAYS</span>
+          <span class="t-num" style="font-size:21px;">{p.streak}</span><span class="t-label" style="font-size:8px;">{$t('progress.daysLabel')}</span>
         </Ring>
         <div style="flex:1;">
-          <div class="t-h2" style="font-size:16px;">Consistency</div>
-          <div class="t-sub" style="font-size:13px; margin-top:2px;">{p.weekSessions}/{p.weekGoal} this week · {p.streak}-day streak</div>
+          <div class="t-h2" style="font-size:16px;">{$t('progress.consistency')}</div>
+          <div class="t-sub" style="font-size:13px; margin-top:2px;">{$t('progress.thisWeekStreak', { done: p.weekSessions, goal: p.weekGoal, streak: p.streak })}</div>
           <div class="row" style="gap:5px; margin-top:10px;">
             {#each Array(14) as _, i}
               {@const on = heatmap.includes(i)}
@@ -60,7 +61,7 @@
 
       <!-- metric grid -->
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-        {#each [{ label: `EST. 1RM · ${p.est1RM.lift.toUpperCase()}`, value: p.est1RM.value, unit: 'kg', delta: p.est1RM.delta, series: p.est1RM.series, color: 'var(--brand)', invert: false }, { label: 'VOLUME · 7D', value: p.volume.value, unit: 'k kg', delta: p.volume.delta, series: p.volume.series, color: '#6E8BFF', invert: false }, { label: 'BODY WEIGHT', value: p.bodyWeight.value, unit: 'kg', delta: p.bodyWeight.delta, series: p.bodyWeight.series, color: '#9B7BFF', invert: true }] as g}
+        {#each [{ label: $t('progress.est1rm', { lift: p.est1RM.lift.toUpperCase() }), value: p.est1RM.value, unit: 'kg', delta: p.est1RM.delta, series: p.est1RM.series, color: 'var(--brand)', invert: false }, { label: $t('progress.volume7d'), value: p.volume.value, unit: 'k kg', delta: p.volume.delta, series: p.volume.series, color: '#6E8BFF', invert: false }, { label: $t('progress.bodyWeight'), value: p.bodyWeight.value, unit: 'kg', delta: p.bodyWeight.delta, series: p.bodyWeight.series, color: '#9B7BFF', invert: true }] as g}
           <div class="card" style="padding:15px;">
             <div class="t-label" style="font-size:10px;">{g.label}</div>
             <div style="display:flex; align-items:baseline; gap:4px; margin-top:6px;">
@@ -72,7 +73,7 @@
           </div>
         {/each}
         <div class="card" style="padding:15px; background:var(--brand-tint);">
-          <div class="t-label" style="font-size:10px; color:var(--brand-ink);">RECENT PRS</div>
+          <div class="t-label" style="font-size:10px; color:var(--brand-ink);">{$t('progress.recentPrs')}</div>
           <div class="t-num" style="font-size:24px; margin-top:6px; color:var(--brand-ink);">{p.prs.length} <span style="font-size:15px;">★</span></div>
           <div style="margin-top:8px; display:flex; flex-direction:column; gap:3px;">
             {#each p.prs.slice(0, 3) as r}
@@ -84,7 +85,7 @@
 
       <!-- PR list -->
       <div>
-        <div class="t-label" style="margin:4px 2px 8px;">Personal records</div>
+        <div class="t-label" style="margin:4px 2px 8px;">{$t('progress.personalRecords')}</div>
         <div class="card" style="padding:4px 16px;">
           {#each p.prs as r, i}
             <div class="row" style="padding:13px 0; border-bottom:{i < p.prs.length - 1 ? '1px solid var(--line)' : 'none'};">

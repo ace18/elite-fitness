@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import { API } from '$lib/api.js';
   import { workout, progress, reloadAll } from '$lib/stores.js';
+  import { t } from '$lib/i18n/index.js';
   import Screen from '$lib/components/ui/Screen.svelte';
   import Loading from '$lib/components/ui/Loading.svelte';
   import TabBar from '$lib/components/ui/TabBar.svelte';
@@ -28,7 +29,7 @@
 
   function greeting() {
     const h = new Date().getHours();
-    return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+    return h < 12 ? $t('home.morning') : h < 18 ? $t('home.afternoon') : $t('home.evening');
   }
 
   let w = $derived($workout);
@@ -62,11 +63,11 @@
       <div class="card" style="padding:16px; display:flex; align-items:center; gap:16px;">
         <Ring pct={wkPct} size={74} stroke={8}>
           <span class="t-num" style="font-size:22px;">{p.streak}</span>
-          <span class="t-label" style="font-size:8px;">DAYS</span>
+          <span class="t-label" style="font-size:8px;">{$t('home.daysLabel')}</span>
         </Ring>
         <div style="flex:1;">
-          <div class="t-h2" style="font-size:16px;">{p.streak}-day streak 🔥</div>
-          <div class="t-sub" style="font-size:13px; margin-top:2px;">{p.weekSessions} of {p.weekGoal} workouts this week</div>
+          <div class="t-h2" style="font-size:16px;">{$t('home.streak', { n: p.streak })}</div>
+          <div class="t-sub" style="font-size:13px; margin-top:2px;">{$t('home.workoutsThisWeek', { done: p.weekSessions, goal: p.weekGoal })}</div>
           <div class="row" style="gap:6px; margin-top:10px;">
             {#each Array(p.weekGoal) as _, i}
               <span style="flex:1; height:7px; border-radius:6px; background:{i < p.weekSessions ? 'var(--brand)' : 'var(--line)'};"></span>
@@ -77,23 +78,23 @@
 
       <!-- today's workout hero -->
       <div>
-        <div class="t-label" style="margin-bottom:8px; padding-left:2px;">Today's plan</div>
+        <div class="t-label" style="margin-bottom:8px; padding-left:2px;">{$t('home.todaysPlan')}</div>
         {#if w}
           <div class="card" style="overflow:hidden; box-shadow:var(--sh-md);">
             <div style="background:linear-gradient(135deg,var(--brand),var(--brand-press)); padding:18px 18px 20px; color:#fff; position:relative;">
               <div style="position:absolute; right:-30px; top:-30px; width:140px; height:140px; border-radius:50%; background:rgba(255,255,255,.12);"></div>
               <div style="position:relative;">
-                <div style="font-size:12px; font-weight:800; letter-spacing:.08em; opacity:.85;">READY WHEN YOU ARE</div>
+                <div style="font-size:12px; font-weight:800; letter-spacing:.08em; opacity:.85;">{$t('home.readyWhenYouAre')}</div>
                 <div class="t-title" style="font-size:27px; margin-top:4px;">{w.name}</div>
                 <div style="font-size:14px; opacity:.9; margin-top:3px;">{w.focus}</div>
                 <div class="row" style="gap:14px; margin-top:14px;">
-                  <span style="font-size:13px; font-weight:700;">◳ {w.exercises.length} exercises</span>
-                  <span style="font-size:13px; font-weight:700;">◷ ~{w.estMin} min</span>
+                  <span style="font-size:13px; font-weight:700;">◳ {w.exercises.length} {$t('common.exercises')}</span>
+                  <span style="font-size:13px; font-weight:700;">◷ ~{w.estMin} {$t('common.min')}</span>
                 </div>
               </div>
             </div>
             <div style="padding:14px;">
-              <Btn block lg onclick={() => goto('/session')}>Start workout →</Btn>
+              <Btn block lg onclick={() => goto('/session')}>{$t('home.startWorkout')}</Btn>
             </div>
           </div>
         {:else}
@@ -101,13 +102,13 @@
           <div class="card" style="padding:22px 18px; text-align:center;">
             <div style="font-size:30px;">{p ? '😌' : '✨'}</div>
             <div class="t-h2" style="font-size:17px; margin-top:8px;">
-              {p ? 'Rest day' : 'No program yet'}
+              {p ? $t('common.restDay') : $t('common.noProgram')}
             </div>
             <div class="t-sub" style="font-size:13.5px; margin-top:4px;">
-              {p ? 'Nothing scheduled today — recover well.' : 'Pick a plan to get your first workout.'}
+              {p ? $t('home.nothingToday') : $t('home.pickAPlan')}
             </div>
             <div style="margin-top:14px;">
-              <Btn block onclick={() => goto('/plan')}>{p ? 'Browse plans' : 'Choose a plan →'}</Btn>
+              <Btn block onclick={() => goto('/plan')}>{p ? $t('home.browsePlans') : $t('common.choosePlan')}</Btn>
             </div>
           </div>
         {/if}
@@ -115,17 +116,17 @@
 
       <!-- this week mini stats -->
       <div>
-        <div class="t-label" style="margin-bottom:8px; padding-left:2px;">This week</div>
+        <div class="t-label" style="margin-bottom:8px; padding-left:2px;">{$t('home.thisWeek')}</div>
         <div class="row" style="gap:11px;">
-          <MiniStat label="VOLUME" value={p.volume.value} unit="k kg" delta={p.volume.delta} />
-          <MiniStat label="EST. 1RM" value={p.est1RM.value} unit="kg" delta={p.est1RM.delta} />
-          <MiniStat label="NEW PRS" value={p.prs.filter((x) => x.fresh).length} unit="★" />
+          <MiniStat label={$t('home.volume')} value={p.volume.value} unit="k kg" delta={p.volume.delta} />
+          <MiniStat label={$t('home.est1rm')} value={p.est1RM.value} unit="kg" delta={p.est1RM.delta} />
+          <MiniStat label={$t('home.newPrs')} value={p.prs.filter((x) => x.fresh).length} unit="★" />
         </div>
       </div>
 
       <!-- recent -->
       <div>
-        <div class="t-label" style="margin-bottom:8px; padding-left:2px;">Recent</div>
+        <div class="t-label" style="margin-bottom:8px; padding-left:2px;">{$t('home.recent')}</div>
         <div class="card" style="padding:4px 16px;">
           {#each recent as r, i}
             <div class="row" style="padding:13px 0; border-bottom:{i < recent.length - 1 ? '1px solid var(--line)' : 'none'};">

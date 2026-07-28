@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { API } from '$lib/api.js';
+  import { t, locale, setLocale, LOCALES } from '$lib/i18n/index.js';
   import Screen from '$lib/components/ui/Screen.svelte';
   import TabBar from '$lib/components/ui/TabBar.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
@@ -23,13 +24,15 @@
     goto('/onboarding');
   }
 
-  const rows = [
-    ['Units', 'kg'],
-    ['Rest timer', 'Auto · 90s'],
-    ['Apple Health', 'Connected'],
-    ['Notifications', 'On'],
-    ['Help & support', '']
-  ];
+  let rows = $derived([
+    [$t('you.units'), 'kg'],
+    [$t('you.restTimer'), $t('you.restTimerValue')],
+    [$t('you.appleHealth'), $t('you.connected')],
+    [$t('you.notifications'), $t('you.on')],
+    [$t('you.help'), '']
+  ]);
+
+  const LOCALE_NAMES = { it: 'Italiano', en: 'English' };
 </script>
 
 <Screen footerFlush>
@@ -43,10 +46,24 @@
       </div>
     </div>
     <div class="row" style="gap:11px;">
-      <MiniStat label="WORKOUTS" value="86" />
-      <MiniStat label="STREAK" value="12" unit="d" />
-      <MiniStat label="PRS" value="23" />
+      <MiniStat label={$t('you.workouts')} value="86" />
+      <MiniStat label={$t('you.streak')} value="12" unit="d" />
+      <MiniStat label={$t('you.prs')} value="23" />
     </div>
+    <!-- language switcher — the one setting on this screen that actually works -->
+    <div class="card" style="padding:14px 16px;">
+      <div class="row" style="justify-content:space-between; align-items:center; gap:12px;">
+        <span style="flex:1; font-size:16px; font-weight:600;">{$t('you.language')}</span>
+        <div class="seg" style="width:150px; flex:0 0 auto;">
+          {#each LOCALES as l}
+            <button class="seg__btn{$locale === l ? ' seg__btn--on' : ''}" onclick={() => setLocale(l)}>
+              {LOCALE_NAMES[l]}
+            </button>
+          {/each}
+        </div>
+      </div>
+    </div>
+
     <div class="card" style="padding:2px 16px;">
       {#each rows as r, i}
         <div class="row" style="padding:15px 0; border-bottom:{i < rows.length - 1 ? '1px solid var(--line)' : 'none'};">
@@ -56,6 +73,6 @@
         </div>
       {/each}
     </div>
-    <button class="btn btn--soft btn--block" style="color:var(--down);" onclick={logout}>Log out</button>
+    <button class="btn btn--soft btn--block" style="color:var(--down);" onclick={logout}>{$t('you.logOut')}</button>
   </div>
 </Screen>

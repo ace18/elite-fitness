@@ -3,18 +3,18 @@ package model
 import "time"
 
 type SessionLog struct {
-	ID          string     `json:"id"`
-	UserID      string     `json:"userId,omitempty"`
-	WorkoutID   *string    `json:"workoutId,omitempty"`
-	ProgramID   *string    `json:"programId,omitempty"`
-	Name        string     `json:"name"`
-	DurationMin *int       `json:"durationMin,omitempty"`
-	TotalVolume *float64   `json:"totalVolume,omitempty"`
-	TotalSets   *int       `json:"totalSets,omitempty"`
-	AvgRPE      *float64   `json:"avgRpe,omitempty"`
-	SessionRPE  *int       `json:"sessionRpe,omitempty"`
-	CompletedAt time.Time  `json:"completedAt"`
-	Sets        []SetLog   `json:"sets,omitempty"`
+	ID          string    `json:"id"`
+	UserID      string    `json:"userId,omitempty"`
+	WorkoutID   *string   `json:"workoutId,omitempty"`
+	ProgramID   *string   `json:"programId,omitempty"`
+	Name        string    `json:"name"`
+	DurationMin *int      `json:"durationMin,omitempty"`
+	TotalVolume *float64  `json:"totalVolume,omitempty"`
+	TotalSets   *int      `json:"totalSets,omitempty"`
+	AvgRPE      *float64  `json:"avgRpe,omitempty"`
+	SessionRPE  *int      `json:"sessionRpe,omitempty"`
+	CompletedAt time.Time `json:"completedAt"`
+	Sets        []SetLog  `json:"sets,omitempty"`
 }
 
 type SetLog struct {

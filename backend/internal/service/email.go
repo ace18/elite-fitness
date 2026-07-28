@@ -14,7 +14,7 @@ import (
 // Mailer spedisce le email transazionali. L'interfaccia esiste perché
 // AuthService possa girare anche senza provider (in dev) e per i test.
 type Mailer interface {
-	SendMagicLink(ctx context.Context, to, link string) error
+	SendMagicLink(ctx context.Context, to, link, locale string) error
 }
 
 const resendEndpoint = "https://api.resend.com/emails"
@@ -45,14 +45,49 @@ type resendEmail struct {
 	Text    string   `json:"text"`
 }
 
-func (m *ResendMailer) SendMagicLink(ctx context.Context, to, link string) error {
+func (m *ResendMailer) SendMagicLink(ctx context.Context, to, link, locale string) error {
+	c := magicLinkCopy(locale)
 	return m.send(ctx, resendEmail{
 		From:    m.from,
 		To:      []string{to},
-		Subject: "Your ELITE sign-in link",
-		HTML:    magicLinkHTML(link),
-		Text:    magicLinkText(link),
+		Subject: c.subject,
+		HTML:    magicLinkHTML(link, c),
+		Text:    magicLinkText(link, c),
 	})
+}
+
+// emailCopy — i testi dell'email. Vivono qui e non nei cataloghi del frontend
+// perché l'email parte dal server, prima ancora che l'utente abbia un account.
+type emailCopy struct {
+	subject, heading, intro, button, orPaste, ignore string
+}
+
+var emailCopies = map[string]emailCopy{
+	"it": {
+		subject: "Il tuo link di accesso a ELITE",
+		heading: "Accedi a ELITE",
+		intro:   "Tocca il pulsante qui sotto per entrare. Il link è valido una sola volta e scade fra 15 minuti.",
+		button:  "Accedi →",
+		orPaste: "Oppure incolla questo link nel browser:",
+		ignore:  "Se non hai richiesto tu l'accesso, puoi ignorare questa email.",
+	},
+	"en": {
+		subject: "Your ELITE sign-in link",
+		heading: "Sign in to ELITE",
+		intro:   "Tap the button below to sign in. The link works once and expires in 15 minutes.",
+		button:  "Sign in →",
+		orPaste: "Or paste this link into your browser:",
+		ignore:  "If you didn't request this, you can ignore this email.",
+	},
+}
+
+// magicLinkCopy sceglie la lingua, con l'italiano come predefinito — è la
+// lingua di default dell'app, quindi anche quella di chi non la specifica.
+func magicLinkCopy(locale string) emailCopy {
+	if c, ok := emailCopies[locale]; ok {
+		return c
+	}
+	return emailCopies["it"]
 }
 
 func (m *ResendMailer) send(ctx context.Context, email resendEmail) error {
@@ -84,7 +119,7 @@ func (m *ResendMailer) send(ctx context.Context, email resendEmail) error {
 
 // Il token è esadecimale e l'URL lo costruiamo noi, ma l'escape resta: se un
 // giorno il link diventa parametrizzabile non vogliamo un'injection nell'HTML.
-func magicLinkHTML(link string) string {
+func magicLinkHTML(link string, c emailCopy) string {
 	safe := html.EscapeString(link)
 	return `<!doctype html>
 <html>
@@ -95,19 +130,19 @@ func magicLinkHTML(link string) string {
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:16px;padding:36px 32px;">
             <tr>
               <td>
-                <h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;color:#111;">Sign in to ELITE</h1>
+                <h1 style="margin:0 0 12px;font-size:24px;line-height:1.25;color:#111;">` + html.EscapeString(c.heading) + `</h1>
                 <p style="margin:0 0 28px;font-size:15px;line-height:1.5;color:#555;">
-                  Tap the button below to sign in. The link works once and expires in 15 minutes.
+                  ` + html.EscapeString(c.intro) + `
                 </p>
                 <a href="` + safe + `" style="display:inline-block;background:#111;color:#fff;text-decoration:none;font-size:15px;font-weight:600;padding:14px 28px;border-radius:12px;">
-                  Sign in →
+                  ` + html.EscapeString(c.button) + `
                 </a>
                 <p style="margin:28px 0 0;font-size:13px;line-height:1.5;color:#888;">
-                  Or paste this link into your browser:<br />
+                  ` + html.EscapeString(c.orPaste) + `<br />
                   <span style="color:#555;word-break:break-all;">` + safe + `</span>
                 </p>
                 <p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#888;">
-                  If you didn't request this, you can ignore this email.
+                  ` + html.EscapeString(c.ignore) + `
                 </p>
               </td>
             </tr>
@@ -119,9 +154,6 @@ func magicLinkHTML(link string) string {
 </html>`
 }
 
-func magicLinkText(link string) string {
-	return "Sign in to ELITE\n\n" +
-		"Open this link to sign in. It works once and expires in 15 minutes.\n\n" +
-		link + "\n\n" +
-		"If you didn't request this, you can ignore this email.\n"
+func magicLinkText(link string, c emailCopy) string {
+	return c.heading + "\n\n" + c.intro + "\n\n" + link + "\n\n" + c.ignore + "\n"
 }

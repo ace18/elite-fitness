@@ -25,7 +25,7 @@ func (h *ProgressHandler) GetProgress(w http.ResponseWriter, r *http.Request) {
 	}
 	metrics, err := h.sessions.GetProgressMetrics(r.Context(), userID, weekGoal)
 	if err != nil {
-		jsonError(w, "db error", http.StatusInternalServerError)
+		jsonError(w, ErrDB, http.StatusInternalServerError)
 		return
 	}
 	jsonOK(w, metrics)
@@ -38,14 +38,14 @@ func (h *ProgressHandler) LogWeight(w http.ResponseWriter, r *http.Request) {
 		Unit   string  `json:"unit"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Weight == 0 {
-		jsonError(w, "weight required", http.StatusBadRequest)
+		jsonError(w, ErrWeightRequired, http.StatusBadRequest)
 		return
 	}
 	if body.Unit == "" {
 		body.Unit = "kg"
 	}
 	if err := h.sessions.LogBodyWeight(r.Context(), userID, body.Weight, body.Unit); err != nil {
-		jsonError(w, "db error", http.StatusInternalServerError)
+		jsonError(w, ErrDB, http.StatusInternalServerError)
 		return
 	}
 	jsonOK(w, map[string]any{"ok": true})

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"time"
 
@@ -23,7 +24,7 @@ func NewProgramHandler(programs *repository.ProgramRepo, ai *service.AIService) 
 func (h *ProgramHandler) GetPlans(w http.ResponseWriter, r *http.Request) {
 	templates, err := h.programs.GetTemplates(r.Context())
 	if err != nil {
-		jsonError(w, "db error", http.StatusInternalServerError)
+		jsonError(w, ErrDB, http.StatusInternalServerError)
 		return
 	}
 	jsonOK(w, templates)
@@ -33,21 +34,22 @@ func (h *ProgramHandler) GetProgram(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	program, err := h.programs.GetActiveProgram(r.Context(), userID)
 	if err != nil {
-		jsonError(w, "no active program", http.StatusNotFound)
+		jsonError(w, ErrNoActiveProgram, http.StatusNotFound)
 		return
 	}
 
 	workouts, err := h.programs.GetWorkoutsForWeek(r.Context(), program.ID, program.CurrentWeek)
 	if err != nil {
-		jsonError(w, "db error", http.StatusInternalServerError)
+		jsonError(w, ErrDB, http.StatusInternalServerError)
 		return
 	}
 
-	// build schedule (current week)
-	days := []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
+	// Il calendario porta l'indice del giorno (0 = lunedì), non il nome: il
+	// nome dipende dalla lingua dell'utente, che il backend non conosce. I
+	// giorni di riposo hanno name/focus nulli e il client ci mette la sua copy.
 	schedule := make([]map[string]any, 7)
-	for i, day := range days {
-		schedule[i] = map[string]any{"day": day, "status": "rest", "name": "Rest", "focus": "Active recovery"}
+	for i := range schedule {
+		schedule[i] = map[string]any{"dayIndex": i, "status": "rest", "name": nil, "focus": nil}
 	}
 	todayDow := int(time.Now().Weekday()+6) % 7
 	// Nessun filtro sulla settimana: ci ha già pensato la query. Filtrare qui
@@ -64,10 +66,10 @@ func (h *ProgramHandler) GetProgram(w http.ResponseWriter, r *http.Request) {
 			status = "upcoming"
 		}
 		schedule[dow] = map[string]any{
-			"day":    days[dow],
-			"name":   w.Name,
-			"focus":  w.Focus,
-			"status": status,
+			"dayIndex": dow,
+			"name":     w.Name,
+			"focus":    w.Focus,
+			"status":   status,
 		}
 	}
 
@@ -89,13 +91,13 @@ func (h *ProgramHandler) SetProgram(w http.ResponseWriter, r *http.Request) {
 		TemplateID string `json:"templateId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.TemplateID == "" {
-		jsonError(w, "templateId required", http.StatusBadRequest)
+		jsonError(w, ErrTemplateRequired, http.StatusBadRequest)
 		return
 	}
 
 	templates, err := h.programs.GetTemplates(r.Context())
 	if err != nil {
-		jsonError(w, "db error", http.StatusInternalServerError)
+		jsonError(w, ErrDB, http.StatusInternalServerError)
 		return
 	}
 	var found *model.PlanTemplate
@@ -106,14 +108,14 @@ func (h *ProgramHandler) SetProgram(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if found == nil {
-		jsonError(w, "template not found", http.StatusNotFound)
+		jsonError(w, ErrTemplateNotFound, http.StatusNotFound)
 		return
 	}
 
 	// Crea il programma e ci copia dentro i workout della template.
 	programID, err := h.programs.CreateFromTemplate(r.Context(), userID, *found)
 	if err != nil {
-		jsonError(w, "db error", http.StatusInternalServerError)
+		jsonError(w, ErrDB, http.StatusInternalServerError)
 		return
 	}
 	jsonOK(w, map[string]any{"ok": true, "programId": programID})
@@ -123,11 +125,11 @@ func (h *ProgramHandler) GeneratePlan(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	var input service.GeneratePlanInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		jsonError(w, "invalid body", http.StatusBadRequest)
+		jsonError(w, ErrInvalidBody, http.StatusBadRequest)
 		return
 	}
 	if input.Goal == "" || input.Level == "" || input.Days == 0 {
-		jsonError(w, "goal, level, days required", http.StatusBadRequest)
+		jsonError(w, ErrPlanInput, http.StatusBadRequest)
 		return
 	}
 	if input.Length == 0 {
@@ -136,7 +138,10 @@ func (h *ProgramHandler) GeneratePlan(w http.ResponseWriter, r *http.Request) {
 
 	program, err := h.ai.GeneratePlan(r.Context(), userID, input)
 	if err != nil {
-		jsonError(w, "AI generation failed: "+err.Error(), http.StatusInternalServerError)
+		// Il dettaglio dell'errore (chiave API, rifiuto del modello, …) resta
+		// nei log: al client basta sapere che non è riuscita.
+		log.Printf("generate plan for %s: %v", userID, err)
+		jsonError(w, ErrPlanGeneration, http.StatusInternalServerError)
 		return
 	}
 	jsonOK(w, program)

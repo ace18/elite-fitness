@@ -24,7 +24,7 @@ func (h *SessionHandler) SaveSession(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	var s model.SessionLog
 	if err := json.NewDecoder(r.Body).Decode(&s); err != nil {
-		jsonError(w, "invalid body", http.StatusBadRequest)
+		jsonError(w, ErrInvalidBody, http.StatusBadRequest)
 		return
 	}
 	s.UserID = userID
@@ -41,7 +41,7 @@ func (h *SessionHandler) SaveSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.sessions.SaveSession(r.Context(), &s); err != nil {
-		jsonError(w, "failed to save session", http.StatusInternalServerError)
+		jsonError(w, ErrSaveSession, http.StatusInternalServerError)
 		return
 	}
 
@@ -60,7 +60,7 @@ func (h *SessionHandler) GetLastSession(w http.ResponseWriter, r *http.Request) 
 	userID := middleware.GetUserID(r)
 	s, err := h.sessions.GetLastSession(r.Context(), userID)
 	if err != nil {
-		jsonError(w, "no sessions yet", http.StatusNotFound)
+		jsonError(w, ErrNoSessions, http.StatusNotFound)
 		return
 	}
 	jsonOK(w, s)

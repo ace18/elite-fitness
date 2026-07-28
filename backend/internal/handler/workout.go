@@ -19,11 +19,11 @@ func (h *WorkoutHandler) GetToday(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	workout, err := h.workouts.BuildTodayWorkout(r.Context(), userID)
 	if err != nil {
-		jsonError(w, "no active program", http.StatusNotFound)
+		jsonError(w, ErrNoActiveProgram, http.StatusNotFound)
 		return
 	}
 	if workout == nil {
-		jsonError(w, "no workout today", http.StatusNotFound)
+		jsonError(w, ErrNoWorkoutToday, http.StatusNotFound)
 		return
 	}
 	jsonOK(w, workout)

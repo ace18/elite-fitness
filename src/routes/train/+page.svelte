@@ -5,6 +5,7 @@
   import { API } from '$lib/api.js';
   import { program, workout, reloadAll } from '$lib/stores.js';
   import Screen from '$lib/components/ui/Screen.svelte';
+  import { t } from '$lib/i18n/index.js';
   import Loading from '$lib/components/ui/Loading.svelte';
   import TabBar from '$lib/components/ui/TabBar.svelte';
   import Ring from '$lib/components/ui/Ring.svelte';
@@ -35,9 +36,9 @@
     {#snippet footer()}<TabBar />{/snippet}
     <div style="padding:60px 24px; text-align:center;">
       <div style="font-size:34px;">✨</div>
-      <h1 class="t-title" style="font-size:22px; margin-top:10px;">No program yet</h1>
-      <p class="t-sub" style="font-size:14px; margin-top:6px;">Pick a ready-made plan or build a custom one.</p>
-      <div style="margin-top:18px;"><Btn block lg onclick={() => goto('/plan')}>Choose a plan →</Btn></div>
+      <h1 class="t-title" style="font-size:22px; margin-top:10px;">{$t('common.noProgram')}</h1>
+      <p class="t-sub" style="font-size:14px; margin-top:6px;">{$t('train.noProgramSub')}</p>
+      <div style="margin-top:18px;"><Btn block lg onclick={() => goto('/plan')}>{$t('common.choosePlan')}</Btn></div>
     </div>
   </Screen>
 {:else}
@@ -47,28 +48,28 @@
       <!-- header -->
       <div class="row" style="justify-content:space-between; padding-top:6px;">
         <div>
-          <div class="t-sub" style="font-size:14px; font-weight:600;">Your plan</div>
-          <div class="t-title" style="font-size:26px;">Training</div>
+          <div class="t-sub" style="font-size:14px; font-weight:600;">{$t('train.yourPlan')}</div>
+          <div class="t-title" style="font-size:26px;">{$t('train.heading')}</div>
         </div>
-        <button class="chip" style="padding:9px 14px;" onclick={() => goto('/plan')}>Browse plans</button>
+        <button class="chip" style="padding:9px 14px;" onclick={() => goto('/plan')}>{$t('train.browsePlans')}</button>
       </div>
 
       <!-- active program card -->
       <div class="card" style="padding:16px;">
         <div class="row" style="justify-content:space-between; align-items:flex-start;">
           <div style="min-width:0;">
-            <div class="t-label" style="color:var(--brand);">ACTIVE PROGRAM</div>
+            <div class="t-label" style="color:var(--brand);">{$t('train.activeProgram')}</div>
             <div class="t-title" style="font-size:20px; margin-top:4px;">{prog.name}</div>
-            <div class="t-sub" style="font-size:13px; margin-top:2px;">{prog.goal} · {prog.level} · {prog.daysPerWeek}×/week</div>
+            <div class="t-sub" style="font-size:13px; margin-top:2px;">{prog.goal} · {prog.level} · {$t('train.perWeek', { n: prog.daysPerWeek })}</div>
           </div>
           <Ring pct={wkPct} size={58} stroke={7}>
             <span class="t-num" style="font-size:16px;">{prog.week}</span>
-            <span class="t-label" style="font-size:7px;">WK</span>
+            <span class="t-label" style="font-size:7px;">{$t('train.wk')}</span>
           </Ring>
         </div>
         <div class="row" style="justify-content:space-between; margin-top:14px; margin-bottom:8px;">
-          <span class="t-label" style="font-size:10px;">WEEK {prog.week} OF {prog.totalWeeks}</span>
-          <span class="t-sub" style="font-size:11.5px; font-weight:700;">{prog.totalWeeks - prog.week} weeks left</span>
+          <span class="t-label" style="font-size:10px;">{$t('train.weekOf', { week: prog.week, total: prog.totalWeeks })}</span>
+          <span class="t-sub" style="font-size:11.5px; font-weight:700;">{$t('train.weeksLeft', { n: prog.totalWeeks - prog.week })}</span>
         </div>
         <div class="row" style="gap:5px;">
           {#each Array(prog.totalWeeks) as _, i}
@@ -81,24 +82,24 @@
 
       <!-- NEXT SESSION hero -->
       <div>
-        <div class="t-label" style="margin-bottom:8px; padding-left:2px;">Next session</div>
+        <div class="t-label" style="margin-bottom:8px; padding-left:2px;">{$t('train.nextSession')}</div>
         {#if !w}
           <div class="card" style="padding:20px 18px; text-align:center;">
-            <div class="t-h2" style="font-size:16px;">Rest day</div>
-            <div class="t-sub" style="font-size:13px; margin-top:4px;">Nothing scheduled today.</div>
+            <div class="t-h2" style="font-size:16px;">{$t('common.restDay')}</div>
+            <div class="t-sub" style="font-size:13px; margin-top:4px;">{$t('train.nothingToday')}</div>
           </div>
         {:else}
         <div class="card" style="overflow:hidden; box-shadow:var(--sh-md);">
           <div style="background:linear-gradient(135deg,var(--brand),var(--brand-press)); padding:18px 18px 20px; color:#fff; position:relative;">
             <div style="position:absolute; right:-30px; top:-30px; width:140px; height:140px; border-radius:50%; background:rgba(255,255,255,.12);"></div>
             <div style="position:relative;">
-              <div style="font-size:12px; font-weight:800; letter-spacing:.08em; opacity:.85;">UP NEXT · TODAY</div>
+              <div style="font-size:12px; font-weight:800; letter-spacing:.08em; opacity:.85;">{$t('train.upNext')}</div>
               <div class="t-title" style="font-size:26px; margin-top:4px;">{w.name}</div>
               <div style="font-size:14px; opacity:.9; margin-top:3px;">{w.focus}</div>
               <div class="row" style="gap:14px; margin-top:14px;">
-                <span style="font-size:13px; font-weight:700;">◳ {w.exercises.length} exercises</span>
-                <span style="font-size:13px; font-weight:700;">≡ {totalSets} sets</span>
-                <span style="font-size:13px; font-weight:700;">◷ ~{w.estMin} min</span>
+                <span style="font-size:13px; font-weight:700;">◳ {w.exercises.length} {$t('common.exercises')}</span>
+                <span style="font-size:13px; font-weight:700;">≡ {totalSets} {$t('common.sets')}</span>
+                <span style="font-size:13px; font-weight:700;">◷ ~{w.estMin} {$t('common.min')}</span>
               </div>
             </div>
           </div>
@@ -127,11 +128,11 @@
               <div class="row" style="gap:8px; padding:10px 12px; background:var(--brand-tint); border-radius:12px; margin-bottom:12px;">
                 <span style="font-size:15px;">↑</span>
                 <span class="t-sub" style="font-size:12.5px; font-weight:700; color:var(--brand-ink);">
-                  {bumps} {bumps === 1 ? 'lift' : 'lifts'} bumped up from last week — progressive overload
+                  {bumps === 1 ? $t('train.bumpedOne', { n: bumps }) : $t('train.bumpedMany', { n: bumps })}
                 </span>
               </div>
             {/if}
-            <Btn block lg onclick={() => goto('/session')}>Start session →</Btn>
+            <Btn block lg onclick={() => goto('/session')}>{$t('train.startSession')}</Btn>
           </div>
         </div>
         {/if}
@@ -139,7 +140,7 @@
 
       <!-- this week schedule -->
       <div>
-        <div class="t-label" style="margin-bottom:8px; padding-left:2px;">This week</div>
+        <div class="t-label" style="margin-bottom:8px; padding-left:2px;">{$t('train.thisWeek')}</div>
         <div class="card" style="padding:4px 16px;">
           {#each prog.schedule as d, i}
             {@const rest = d.status === 'rest'}
@@ -147,7 +148,7 @@
             {@const isDone = d.status === 'done'}
             <div class="row" style="padding:13px 0; border-bottom:{i < prog.schedule.length - 1 ? '1px solid var(--line)' : 'none'}; align-items:center; opacity:{rest ? 0.62 : 1};">
               <div style="width:42px; flex:0 0 auto; text-align:center;">
-                <div class="t-label" style="font-size:10px; color:{today ? 'var(--brand)' : 'var(--ink3)'};">{d.day}</div>
+                <div class="t-label" style="font-size:10px; color:{today ? 'var(--brand)' : 'var(--ink3)'};">{$t(`weekday.${d.dayIndex}`)}</div>
               </div>
               <div style="width:30px; height:30px; flex:0 0 auto; border-radius:50%; display:flex; align-items:center; justify-content:center;
                 background:{isDone ? 'var(--brand)' : today ? 'var(--brand-tint)' : '#EEF1F4'};
@@ -157,11 +158,11 @@
                 {:else}<span style="width:11px; height:2.5px; border-radius:2px; background:var(--ink4);"></span>{/if}
               </div>
               <div style="flex:1; min-width:0;">
-                <div class="t-h2" style="font-size:15px; color:{rest ? 'var(--ink2)' : 'var(--ink)'};">{d.name}</div>
-                <div class="t-sub" style="font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{d.focus}</div>
+                <div class="t-h2" style="font-size:15px; color:{rest ? 'var(--ink2)' : 'var(--ink)'};">{d.name ?? $t('common.rest')}</div>
+                <div class="t-sub" style="font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{d.focus ?? $t('common.activeRecovery')}</div>
               </div>
               {#if isDone}<span class="t-mono t-sub" style="font-size:12.5px; font-weight:700;">{d.volume}</span>{/if}
-              {#if today}<span class="chip chip--tint" style="font-size:11.5px; padding:5px 10px;">Today</span>{/if}
+              {#if today}<span class="chip chip--tint" style="font-size:11.5px; padding:5px 10px;">{$t('common.today')}</span>{/if}
             </div>
           {/each}
         </div>

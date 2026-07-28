@@ -30,37 +30,39 @@ export function recommendPlan(a) {
   };
 }
 
+// The questionnaire carries i18n keys, not copy — the plan page resolves them
+// through $t so switching language re-renders the quiz.
 export const PLAN_QUESTIONS = [
   {
-    key: 'goal', title: "What's your main goal?", sub: 'We tune volume and rep ranges to match.', kind: 'cards',
+    key: 'goal', title: 'plan.q.goalTitle', sub: 'plan.q.goalSub', kind: 'cards',
     options: [
-      { v: 'muscle',   glyph: '💪', title: 'Build muscle', desc: 'Maximize size and volume' },
-      { v: 'strength', glyph: '🏋', title: 'Get stronger', desc: 'Heavier lifts, lower reps' },
-      { v: 'lean',     glyph: '🔥', title: 'Get lean',     desc: 'Burn fat, stay conditioned' },
-      { v: 'fit',      glyph: '⚡', title: 'Stay fit',     desc: 'Balanced general fitness' }
+      { v: 'muscle',   glyph: '💪', title: 'plan.q.muscle',   desc: 'plan.q.muscleDesc' },
+      { v: 'strength', glyph: '🏋', title: 'plan.q.strength', desc: 'plan.q.strengthDesc' },
+      { v: 'lean',     glyph: '🔥', title: 'plan.q.lean',     desc: 'plan.q.leanDesc' },
+      { v: 'fit',      glyph: '⚡', title: 'plan.q.fit',      desc: 'plan.q.fitDesc' }
     ]
   },
   {
-    key: 'level', title: 'How experienced are you?', sub: 'Sets the starting weights and progression pace.', kind: 'cards',
+    key: 'level', title: 'plan.q.levelTitle', sub: 'plan.q.levelSub', kind: 'cards',
     options: [
-      { v: 'beginner',     glyph: '🌱', title: 'Beginner',     desc: 'New or returning after a break' },
-      { v: 'intermediate', glyph: '📈', title: 'Intermediate', desc: '6 months – 2 years lifting' },
-      { v: 'advanced',     glyph: '🎯', title: 'Advanced',     desc: '2+ years, consistent training' }
+      { v: 'beginner',     glyph: '🌱', title: 'plan.q.beginner',     desc: 'plan.q.beginnerDesc' },
+      { v: 'intermediate', glyph: '📈', title: 'plan.q.intermediate', desc: 'plan.q.intermediateDesc' },
+      { v: 'advanced',     glyph: '🎯', title: 'plan.q.advanced',     desc: 'plan.q.advancedDesc' }
     ]
   },
   {
-    key: 'days', title: 'Days per week?', sub: 'How many sessions can you commit to?', kind: 'tiles',
-    options: [{ v: 2, label: 'days' }, { v: 3, label: 'days' }, { v: 4, label: 'days' }, { v: 5, label: 'days' }, { v: 6, label: 'days' }], unit: 'days'
+    key: 'days', title: 'plan.q.daysTitle', sub: 'plan.q.daysSub', kind: 'tiles',
+    options: [{ v: 2, label: 'common.days' }, { v: 3, label: 'common.days' }, { v: 4, label: 'common.days' }, { v: 5, label: 'common.days' }, { v: 6, label: 'common.days' }], unit: 'common.days'
   },
   {
-    key: 'length', title: 'Time per session?', sub: 'We size each workout to fit.', kind: 'tiles',
-    options: [{ v: 30, label: 'min' }, { v: 45, label: 'min' }, { v: 60, label: 'min' }, { v: 75, label: 'min' }], unit: 'min'
+    key: 'length', title: 'plan.q.lengthTitle', sub: 'plan.q.lengthSub', kind: 'tiles',
+    options: [{ v: 30, label: 'common.min' }, { v: 45, label: 'common.min' }, { v: 60, label: 'common.min' }, { v: 75, label: 'common.min' }], unit: 'common.min'
   }
 ];
 
 export const BUILD_MSGS = [
-  'Analyzing your goals…',
-  'Selecting the right movements…',
-  'Balancing weekly volume…',
-  'Setting your progression…'
+  'plan.build.analyzing',
+  'plan.build.selecting',
+  'plan.build.balancing',
+  'plan.build.progression'
 ];

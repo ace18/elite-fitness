@@ -12,6 +12,9 @@ export class ApiError extends Error {
     this.name = 'ApiError';
     this.status = status; // 0 = network unreachable
     this.body = body;
+    // Stable machine code from the backend (see handler/helpers.go). The
+    // backend never localises — the client owns the copy for these.
+    this.code = body?.code ?? null;
   }
 }
 
@@ -109,8 +112,10 @@ export const API = {
   // ---- auth (passwordless magic link) ----------------------------------
   // Returns { ok, email, devToken? }. devToken is only present when the
   // backend runs with APP_ENV=development.
-  async sendMagicLink(email) {
-    return request('/api/auth/magic-link', { method: 'POST', body: { email }, auth: false });
+  async sendMagicLink(email, locale) {
+    // The backend has no idea what language the user reads — it needs to be
+    // told, because the email goes out before any account exists.
+    return request('/api/auth/magic-link', { method: 'POST', body: { email, locale }, auth: false });
   },
 
   // ---- auth (OAuth) ----------------------------------------------------

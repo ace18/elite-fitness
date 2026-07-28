@@ -46,7 +46,9 @@ func NormalizeEmail(email string) string {
 // SendMagicLink genera il token, lo spedisce per email e lo restituisce
 // (l'handler lo espone solo in dev). Il link punta al frontend, che chiama
 // /api/auth/verify e scambia il token per un JWT.
-func (s *AuthService) SendMagicLink(ctx context.Context, email string) (string, error) {
+// `locale` viene dal client: l'email parte prima che l'utente esista, quindi
+// non c'è nessuna preferenza salvata da consultare.
+func (s *AuthService) SendMagicLink(ctx context.Context, email, locale string) (string, error) {
 	// Normalizzato qui una volta sola: il token viene salvato sotto questa
 	// forma, quindi l'email deve partire verso lo stesso indirizzo.
 	email = NormalizeEmail(email)
@@ -64,7 +66,7 @@ func (s *AuthService) SendMagicLink(ctx context.Context, email string) (string, 
 		return token, nil
 	}
 
-	if err := s.mailer.SendMagicLink(ctx, email, link); err != nil {
+	if err := s.mailer.SendMagicLink(ctx, email, link, locale); err != nil {
 		return "", fmt.Errorf("send magic link: %w", err)
 	}
 	if s.isDev {

@@ -1,13 +1,14 @@
 {
     "name": "elite-fitness",
     "version": "1.0.0",
-    "description": "ELITE — strength-training PWA (SvelteKit port of the ELITE prototype)",
+    "description": "ELITE \u2014 strength-training PWA (SvelteKit port of the ELITE prototype)",
     "private": true,
     "type": "module",
     "scripts": {
         "dev": "vite dev",
         "build": "vite build",
-        "preview": "vite preview"
+        "preview": "vite preview",
+        "check:i18n": "node scripts/check-i18n.js"
     },
     "devDependencies": {
         "@sveltejs/adapter-static": "^3.0.6",
