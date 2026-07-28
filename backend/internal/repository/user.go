@@ -67,6 +67,18 @@ func (r *UserRepo) StoreMagicLink(ctx context.Context, email string) (string, er
 	return token, err
 }
 
+// DeleteExpiredMagicLinksBefore elimina i token scaduti da prima di `cutoff`.
+// Il taglio è su expires_at e non su used_at: un token usato è comunque già
+// inutilizzabile (VerifyMagicLink pretende used_at IS NULL), quindi tenere
+// l'unico criterio temporale rende la potatura banale da ragionare.
+func (r *UserRepo) DeleteExpiredMagicLinksBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	tag, err := r.db.Exec(ctx, `DELETE FROM magic_link_tokens WHERE expires_at < $1`, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
 func (r *UserRepo) VerifyMagicLink(ctx context.Context, token string) (string, error) {
 	var email string
 	err := r.db.QueryRow(ctx,

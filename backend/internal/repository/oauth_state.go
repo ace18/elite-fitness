@@ -37,8 +37,13 @@ func (r *OAuthStateRepo) Consume(ctx context.Context, state, provider string) (v
 	return verifier, err
 }
 
-// DeleteExpired ripulisce gli state abbandonati (consenso mai completato).
-func (r *OAuthStateRepo) DeleteExpired(ctx context.Context) error {
-	_, err := r.db.Exec(ctx, `DELETE FROM oauth_states WHERE expires_at < NOW()`)
-	return err
+// DeleteExpiredBefore elimina gli state abbandonati (consenso mai completato)
+// scaduti da prima di `cutoff`. Quelli usati spariscono già da soli, consumati
+// dal DELETE ... RETURNING di Consume.
+func (r *OAuthStateRepo) DeleteExpiredBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	tag, err := r.db.Exec(ctx, `DELETE FROM oauth_states WHERE expires_at < $1`, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }

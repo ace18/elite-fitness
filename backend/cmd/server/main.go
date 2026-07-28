@@ -85,6 +85,15 @@ func main() {
 	} else {
 		fmt.Println("[oauth] no providers configured — magic link only")
 	}
+	// Potatura: senza questa magic_link_tokens e oauth_states crescono per
+	// sempre, una riga per ogni tentativo di login.
+	pruner := service.NewPruner(
+		service.DefaultPruneInterval, service.DefaultPruneRetention,
+		service.PruneTask{Name: "magic_link_tokens", Delete: userRepo.DeleteExpiredMagicLinksBefore},
+		service.PruneTask{Name: "oauth_states", Delete: oauthStateRepo.DeleteExpiredBefore},
+	)
+	go pruner.Run(ctx)
+
 	workoutSvc := service.NewWorkoutService(programRepo)
 	aiSvc := service.NewAIService(cfg.AnthropicKey, programRepo, pool)
 
