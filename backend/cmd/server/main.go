@@ -98,6 +98,13 @@ func main() {
 
 	// router
 	r := chi.NewRouter()
+	// RealIP riscrive RemoteAddr da X-Forwarded-For, che è ciò su cui il rate
+	// limiter fa da chiave. Va abilitato solo dietro un proxy fidato: esposto
+	// direttamente, chiunque aggirerebbe il limite falsificando l'header.
+	if cfg.TrustProxyHeaders {
+		r.Use(chimiddleware.RealIP)
+		fmt.Println("[warn] TRUST_PROXY_HEADERS=true — X-Forwarded-For is trusted; only correct behind a proxy")
+	}
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{

@@ -17,6 +17,13 @@ type Config struct {
 	ResendAPIKey string
 	EmailFrom    string
 
+	// TrustProxyHeaders — attivare SOLO se il backend sta dietro un proxy che
+	// riscrive lui X-Forwarded-For. Se è false ci si fida di RemoteAddr.
+	// Sbagliarlo rompe il rate limiting in un verso o nell'altro: acceso senza
+	// proxy chiunque aggira il limite con un header falso; spento dietro un
+	// proxy tutte le richieste arrivano dallo stesso IP e si bloccano a vicenda.
+	TrustProxyHeaders bool
+
 	// APIURL — URL pubblico di questo backend, serve a comporre i redirect_uri
 	// assoluti che i provider OAuth richiedono e che vanno registrati identici
 	// nelle rispettive console.
@@ -79,6 +86,7 @@ func Load() *Config {
 		ResendAPIKey: os.Getenv("RESEND_API_KEY"),
 		EmailFrom:    emailFrom,
 
+		TrustProxyHeaders:  os.Getenv("TRUST_PROXY_HEADERS") == "true",
 		APIURL:             apiURL,
 		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),

@@ -36,13 +36,20 @@ func NewAuthService(users *repository.UserRepo, secret string, isDev bool, maile
 // dev-only affordances — never let this be true in production.
 func (s *AuthService) IsDev() bool { return s.isDev }
 
+// NormalizeEmail porta l'indirizzo alla forma canonica con cui viene salvato.
+// Chi fa rate limiting per email DEVE passare di qui, altrimenti basterebbe
+// cambiare maiuscole a ogni richiesta per avere un secchiello nuovo.
+func NormalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
 // SendMagicLink genera il token, lo spedisce per email e lo restituisce
 // (l'handler lo espone solo in dev). Il link punta al frontend, che chiama
 // /api/auth/verify e scambia il token per un JWT.
 func (s *AuthService) SendMagicLink(ctx context.Context, email string) (string, error) {
 	// Normalizzato qui una volta sola: il token viene salvato sotto questa
 	// forma, quindi l'email deve partire verso lo stesso indirizzo.
-	email = strings.ToLower(strings.TrimSpace(email))
+	email = NormalizeEmail(email)
 	token, err := s.users.StoreMagicLink(ctx, email)
 	if err != nil {
 		return "", err

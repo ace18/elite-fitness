@@ -80,7 +80,11 @@
       devToken = res.devToken ?? '';
       stage = 'sent';
     } catch (e) {
-      error = e.status === 0 ? 'Backend unreachable — is it running?' : e.message;
+      if (e.status === 0) error = 'Backend unreachable — is it running?';
+      // Rate limited: the backend caps how often a link can be requested.
+      else if (e.status === 429) error = 'Too many requests. Wait a few minutes and try again.';
+      else if (e.status === 400) error = 'That email address doesn’t look right.';
+      else error = e.message;
     } finally {
       busy = '';
     }
