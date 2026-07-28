@@ -22,7 +22,10 @@ func (s *WorkoutService) BuildTodayWorkout(ctx context.Context, userID string) (
 		return nil, err
 	}
 
-	workouts, err := s.programs.GetWorkoutsForProgram(ctx, program.ID)
+	// Gli allenamenti della settimana in corso: se un giorno le template
+	// definiranno settimane diverse, l'allenamento di oggi seguirà quella
+	// giusta senza altre modifiche qui.
+	workouts, err := s.programs.GetWorkoutsForWeek(ctx, program.ID, program.CurrentWeek)
 	if err != nil {
 		return nil, err
 	}

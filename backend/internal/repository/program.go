@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/elitecoach/backend/internal/model"
 	"github.com/jackc/pgx/v5"
@@ -56,15 +57,17 @@ func (r *ProgramRepo) GetActiveProgram(ctx context.Context, userID string) (*mod
 	p := &model.UserProgram{}
 	err := r.db.QueryRow(ctx,
 		`SELECT id, user_id, template_id, name, goal, level, days_per_week,
-		        total_weeks, current_week, is_active, started_at
+		        total_weeks, is_active, started_at
 		 FROM user_programs WHERE user_id = $1 AND is_active = TRUE
 		 ORDER BY started_at DESC LIMIT 1`,
 		userID,
 	).Scan(&p.ID, &p.UserID, &p.TemplateID, &p.Name, &p.Goal, &p.Level,
-		&p.DaysPerWeek, &p.TotalWeeks, &p.CurrentWeek, &p.IsActive, &p.StartedAt)
+		&p.DaysPerWeek, &p.TotalWeeks, &p.IsActive, &p.StartedAt)
 	if err != nil {
 		return nil, err
 	}
+	// Calcolata, non letta dal database: vedi UserProgram.WeekAt.
+	p.CurrentWeek = p.WeekAt(time.Now())
 	return p, nil
 }
 
@@ -128,11 +131,25 @@ func (r *ProgramRepo) CreateFromTemplate(ctx context.Context, userID string, t m
 	return programID, nil
 }
 
-func (r *ProgramRepo) GetWorkoutsForProgram(ctx context.Context, programID string) ([]model.ProgramWorkout, error) {
+// GetWorkoutsForWeek restituisce gli allenamenti che valgono per la settimana
+// `week`.
+//
+// Le template definiscono una sola settimana, che si ripete: chiedere la
+// settimana 5 di un programma che ne descrive solo una deve restituire quella,
+// non il vuoto. Perciò si usa la settimana definita più recente fra quelle
+// minori o uguali a `week`, invece del confronto esatto — che è anche il modo
+// in cui funzionerebbe un programma periodizzato vero, dove una settimana di
+// scarico definita alla 4 varrebbe fino alla successiva definita.
+func (r *ProgramRepo) GetWorkoutsForWeek(ctx context.Context, programID string, week int) ([]model.ProgramWorkout, error) {
 	rows, err := r.db.Query(ctx,
 		`SELECT id, program_id, name, focus, day_of_week, week_number, order_in_week
-		 FROM program_workouts WHERE program_id = $1 ORDER BY week_number, order_in_week`,
-		programID)
+		 FROM program_workouts
+		 WHERE program_id = $1
+		   AND week_number = COALESCE(
+		         (SELECT MAX(week_number) FROM program_workouts
+		          WHERE program_id = $1 AND week_number <= $2), 1)
+		 ORDER BY order_in_week`,
+		programID, week)
 	if err != nil {
 		return nil, err
 	}

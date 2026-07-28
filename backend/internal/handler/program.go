@@ -37,7 +37,7 @@ func (h *ProgramHandler) GetProgram(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workouts, err := h.programs.GetWorkoutsForProgram(r.Context(), program.ID)
+	workouts, err := h.programs.GetWorkoutsForWeek(r.Context(), program.ID, program.CurrentWeek)
 	if err != nil {
 		jsonError(w, "db error", http.StatusInternalServerError)
 		return
@@ -50,10 +50,10 @@ func (h *ProgramHandler) GetProgram(w http.ResponseWriter, r *http.Request) {
 		schedule[i] = map[string]any{"day": day, "status": "rest", "name": "Rest", "focus": "Active recovery"}
 	}
 	todayDow := int(time.Now().Weekday()+6) % 7
+	// Nessun filtro sulla settimana: ci ha già pensato la query. Filtrare qui
+	// su week_number == CurrentWeek era il bug — dalla settimana 2 in poi non
+	// corrispondeva più niente e il calendario si svuotava.
 	for _, w := range workouts {
-		if w.WeekNumber != program.CurrentWeek {
-			continue
-		}
 		dow := w.DayOfWeek
 		var status string
 		if dow < todayDow {
