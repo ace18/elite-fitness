@@ -2,17 +2,47 @@ package config
 
 import (
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	DatabaseURL   string
-	JWTSecret     string
-	Port          string
-	FrontendURL   string
-	AppEnv        string
-	AnthropicKey  string
+	DatabaseURL  string
+	JWTSecret    string
+	Port         string
+	FrontendURL  string
+	AppEnv       string
+	AnthropicKey string
+	ResendAPIKey string
+	EmailFrom    string
+
+	// APIURL — URL pubblico di questo backend, serve a comporre i redirect_uri
+	// assoluti che i provider OAuth richiedono e che vanno registrati identici
+	// nelle rispettive console.
+	APIURL string
+
+	GoogleClientID     string
+	GoogleClientSecret string
+
+	AppleTeamID     string
+	AppleServicesID string
+	AppleKeyID      string
+	ApplePrivateKey string
+}
+
+// OAuthRedirectURL costruisce il redirect_uri per un provider. Deve combaciare
+// carattere per carattere con quello registrato dal provider.
+func (c *Config) OAuthRedirectURL(provider string) string {
+	return strings.TrimRight(c.APIURL, "/") + "/api/auth/oauth/" + provider + "/callback"
+}
+
+func (c *Config) GoogleConfigured() bool {
+	return c.GoogleClientID != "" && c.GoogleClientSecret != ""
+}
+
+func (c *Config) AppleConfigured() bool {
+	return c.AppleTeamID != "" && c.AppleServicesID != "" && c.AppleKeyID != "" && c.ApplePrivateKey != ""
 }
 
 func Load() *Config {
@@ -29,6 +59,16 @@ func Load() *Config {
 	if appEnv == "" {
 		appEnv = "development"
 	}
+	// onboarding@resend.dev è il mittente di prova di Resend: non richiede un
+	// dominio verificato ma consegna solo all'email del titolare dell'account.
+	emailFrom := os.Getenv("EMAIL_FROM")
+	if emailFrom == "" {
+		emailFrom = "ELITE <onboarding@resend.dev>"
+	}
+	apiURL := os.Getenv("API_URL")
+	if apiURL == "" {
+		apiURL = "http://localhost:" + port
+	}
 	return &Config{
 		DatabaseURL:  os.Getenv("DATABASE_URL"),
 		JWTSecret:    os.Getenv("JWT_SECRET"),
@@ -36,6 +76,16 @@ func Load() *Config {
 		FrontendURL:  frontendURL,
 		AppEnv:       appEnv,
 		AnthropicKey: os.Getenv("ANTHROPIC_API_KEY"),
+		ResendAPIKey: os.Getenv("RESEND_API_KEY"),
+		EmailFrom:    emailFrom,
+
+		APIURL:             apiURL,
+		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+		AppleTeamID:        os.Getenv("APPLE_TEAM_ID"),
+		AppleServicesID:    os.Getenv("APPLE_SERVICES_ID"),
+		AppleKeyID:         os.Getenv("APPLE_KEY_ID"),
+		ApplePrivateKey:    os.Getenv("APPLE_PRIVATE_KEY"),
 	}
 }
 

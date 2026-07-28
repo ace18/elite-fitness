@@ -113,6 +113,21 @@ export const API = {
     return request('/api/auth/magic-link', { method: 'POST', body: { email }, auth: false });
   },
 
+  // ---- auth (OAuth) ----------------------------------------------------
+  // Which providers the backend actually has credentials for. Buttons are
+  // rendered from this so we never show one that would just error out.
+  async listProviders() {
+    const res = await request('/api/auth/providers', { auth: false });
+    return res?.providers ?? [];
+  },
+
+  // Not a fetch: the browser has to *navigate* here so the provider can
+  // redirect back. The callback returns to /login?token=… which verifyToken
+  // below then consumes, exactly like the emailed magic link.
+  oauthStartURL(provider) {
+    return `${BASE}/api/auth/oauth/${encodeURIComponent(provider)}/start`;
+  },
+
   // Exchanges the emailed token for a JWT and caches the session.
   async verifyToken(token) {
     const res = await request(`/api/auth/verify?token=${encodeURIComponent(token)}`, { auth: false });

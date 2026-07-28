@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"strings"
 	"time"
 
 	"github.com/elitecoach/backend/internal/model"
@@ -16,15 +17,30 @@ type UserRepo struct {
 
 func NewUserRepo(db *pgxpool.Pool) *UserRepo { return &UserRepo{db: db} }
 
+// normalizeEmail — users.email è UNIQUE e case-sensitive, quindi senza questo
+// "Mario@x.com" digitato nel magic link e "mario@x.com" restituito da Google
+// creerebbero due account distinti.
+func normalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
 func (r *UserRepo) FindOrCreate(ctx context.Context, email string) (*model.User, error) {
 	u := &model.User{}
 	err := r.db.QueryRow(ctx,
 		`INSERT INTO users (email) VALUES ($1)
 		 ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
 		 RETURNING id, email, name, created_at`,
-		email,
+		normalizeEmail(email),
 	).Scan(&u.ID, &u.Email, &u.Name, &u.CreatedAt)
 	return u, err
+}
+
+// SetNameIfEmpty riempie il nome solo se non c'è già: Apple lo manda una volta
+// sola, e non deve sovrascrivere un nome scelto dall'utente.
+func (r *UserRepo) SetNameIfEmpty(ctx context.Context, userID, name string) error {
+	_, err := r.db.Exec(ctx,
+		`UPDATE users SET name = $2 WHERE id = $1 AND name = ''`, userID, name)
+	return err
 }
 
 func (r *UserRepo) FindByID(ctx context.Context, id string) (*model.User, error) {
@@ -46,7 +62,7 @@ func (r *UserRepo) StoreMagicLink(ctx context.Context, email string) (string, er
 	token := hex.EncodeToString(b)
 	_, err := r.db.Exec(ctx,
 		`INSERT INTO magic_link_tokens (email, token, expires_at) VALUES ($1, $2, $3)`,
-		email, token, time.Now().Add(15*time.Minute),
+		normalizeEmail(email), token, time.Now().Add(15*time.Minute),
 	)
 	return token, err
 }

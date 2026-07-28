@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/elitecoach/backend/internal/config"
 	"github.com/elitecoach/backend/internal/db"
@@ -44,14 +45,52 @@ func main() {
 	userRepo := repository.NewUserRepo(pool)
 	programRepo := repository.NewProgramRepo(pool)
 	sessionRepo := repository.NewSessionRepo(pool)
+	oauthStateRepo := repository.NewOAuthStateRepo(pool)
 
 	// services
-	authSvc := service.NewAuthService(userRepo, cfg.JWTSecret, cfg.IsDev())
+	var mailer service.Mailer
+	if cfg.ResendAPIKey != "" {
+		mailer = service.NewResendMailer(cfg.ResendAPIKey, cfg.EmailFrom)
+		fmt.Printf("[mail] resend enabled, from %s\n", cfg.EmailFrom)
+	} else if cfg.IsDev() {
+		// Senza mailer il login resta completabile solo grazie al devToken.
+		fmt.Println("[warn] RESEND_API_KEY unset — magic-link emails will not be sent")
+	} else {
+		// In produzione niente email significa che nessuno può autenticarsi:
+		// meglio non partire affatto che accettare login che falliranno.
+		log.Fatal("RESEND_API_KEY is required in production")
+	}
+	authSvc := service.NewAuthService(userRepo, cfg.JWTSecret, cfg.IsDev(), mailer, cfg.FrontendURL)
+
+	// Ogni provider entra nel registro solo se configurato: il frontend chiede
+	// /api/auth/providers e disegna i bottoni di conseguenza.
+	var providers []service.OAuthProvider
+	if cfg.GoogleConfigured() {
+		providers = append(providers, service.NewGoogleProvider(
+			cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.OAuthRedirectURL("google")))
+	}
+	if cfg.AppleConfigured() {
+		apple, err := service.NewAppleProvider(
+			cfg.AppleTeamID, cfg.AppleServicesID, cfg.AppleKeyID, cfg.ApplePrivateKey,
+			cfg.OAuthRedirectURL("apple"))
+		if err != nil {
+			// Chiave .p8 illeggibile: meglio saperlo all'avvio che al primo login.
+			log.Fatalf("apple oauth: %v", err)
+		}
+		providers = append(providers, apple)
+	}
+	oauthRegistry := service.NewOAuthRegistry(providers...)
+	if oauthRegistry.Enabled() {
+		fmt.Printf("[oauth] enabled: %s\n", strings.Join(oauthRegistry.Names(), ", "))
+	} else {
+		fmt.Println("[oauth] no providers configured — magic link only")
+	}
 	workoutSvc := service.NewWorkoutService(programRepo)
 	aiSvc := service.NewAIService(cfg.AnthropicKey, programRepo, pool)
 
 	// handlers
 	authH := handler.NewAuthHandler(authSvc, userRepo)
+	oauthH := handler.NewOAuthHandler(oauthRegistry, oauthStateRepo, userRepo, cfg.FrontendURL)
 	programH := handler.NewProgramHandler(programRepo, aiSvc)
 	workoutH := handler.NewWorkoutHandler(workoutSvc)
 	sessionH := handler.NewSessionHandler(sessionRepo)
@@ -71,6 +110,11 @@ func main() {
 	// public auth routes
 	r.Post("/api/auth/magic-link", authH.SendMagicLink)
 	r.Get("/api/auth/verify", authH.Verify)
+	r.Get("/api/auth/providers", oauthH.Providers)
+	r.Get("/api/auth/oauth/{provider}/start", oauthH.Start)
+	// Google torna in GET, Apple in POST form-encoded (response_mode=form_post).
+	r.Get("/api/auth/oauth/{provider}/callback", oauthH.Callback)
+	r.Post("/api/auth/oauth/{provider}/callback", oauthH.Callback)
 
 	// protected routes
 	r.Group(func(r chi.Router) {

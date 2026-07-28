@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/elitecoach/backend/internal/model"
@@ -11,33 +13,61 @@ import (
 )
 
 type AuthService struct {
-	users     *repository.UserRepo
-	jwtSecret []byte
-	isDev     bool
+	users       *repository.UserRepo
+	jwtSecret   []byte
+	isDev       bool
+	mailer      Mailer
+	frontendURL string
 }
 
-func NewAuthService(users *repository.UserRepo, secret string, isDev bool) *AuthService {
-	return &AuthService{users: users, jwtSecret: []byte(secret), isDev: isDev}
+// NewAuthService — mailer può essere nil: in dev il login resta completabile
+// col devToken restituito dall'handler, in produzione diventa un errore.
+func NewAuthService(users *repository.UserRepo, secret string, isDev bool, mailer Mailer, frontendURL string) *AuthService {
+	return &AuthService{
+		users:       users,
+		jwtSecret:   []byte(secret),
+		isDev:       isDev,
+		mailer:      mailer,
+		frontendURL: frontendURL,
+	}
 }
 
 // IsDev reports whether the service runs in development mode. Used to gate
 // dev-only affordances — never let this be true in production.
 func (s *AuthService) IsDev() bool { return s.isDev }
 
-// SendMagicLink genera il token e lo restituisce. Non esiste ancora un
-// servizio email: in dev il token viene stampato (e restituito al chiamante,
-// vedi handler), in produzione va spedito per email — finché non c'è, il
-// login in produzione non è completabile.
+// SendMagicLink genera il token, lo spedisce per email e lo restituisce
+// (l'handler lo espone solo in dev). Il link punta al frontend, che chiama
+// /api/auth/verify e scambia il token per un JWT.
 func (s *AuthService) SendMagicLink(ctx context.Context, email string) (string, error) {
+	// Normalizzato qui una volta sola: il token viene salvato sotto questa
+	// forma, quindi l'email deve partire verso lo stesso indirizzo.
+	email = strings.ToLower(strings.TrimSpace(email))
 	token, err := s.users.StoreMagicLink(ctx, email)
 	if err != nil {
 		return "", err
 	}
-	if s.isDev {
-		fmt.Printf("[magic-link] token for %s: %s\n", email, token)
+	link := s.magicLinkURL(token)
+
+	if s.mailer == nil {
+		if !s.isDev {
+			return "", fmt.Errorf("no email provider configured: set RESEND_API_KEY")
+		}
+		fmt.Printf("[magic-link] %s → %s\n", email, link)
+		return token, nil
 	}
-	// TODO: inviare l'email col link quando c'è un provider configurato.
+
+	if err := s.mailer.SendMagicLink(ctx, email, link); err != nil {
+		return "", fmt.Errorf("send magic link: %w", err)
+	}
+	if s.isDev {
+		fmt.Printf("[magic-link] sent to %s → %s\n", email, link)
+	}
 	return token, nil
+}
+
+func (s *AuthService) magicLinkURL(token string) string {
+	return strings.TrimRight(s.frontendURL, "/") + "/login?token=" + url.QueryEscape(token)
 }
 
 func (s *AuthService) VerifyToken(ctx context.Context, token string) (*model.User, string, error) {

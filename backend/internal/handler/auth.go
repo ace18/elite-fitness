@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/elitecoach/backend/internal/middleware"
@@ -28,6 +29,9 @@ func (h *AuthHandler) SendMagicLink(w http.ResponseWriter, r *http.Request) {
 	}
 	token, err := h.auth.SendMagicLink(r.Context(), body.Email)
 	if err != nil {
+		// Il motivo (chiave Resend rifiutata, dominio non verificato, …) resta
+		// nei log: al client basta sapere che non è partita.
+		log.Printf("magic-link for %s: %v", body.Email, err)
 		jsonError(w, "failed to send link", http.StatusInternalServerError)
 		return
 	}
