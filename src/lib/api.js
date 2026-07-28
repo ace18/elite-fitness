@@ -196,7 +196,8 @@ export const API = {
       method: 'POST',
       body: {
         workoutId: summary.workoutId ?? null,
-        programId: summary.programId ?? null,
+        // No programId: the server stamps the session with the user's active
+        // program itself, so anything sent here would just be ignored.
         name: summary.name,
         durationMin: summary.durationMin ?? null,
         totalVolume: summary.volume ?? null,

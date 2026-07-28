@@ -58,6 +58,34 @@ func (p *UserProgram) WeekAt(now time.Time) int {
 	return week
 }
 
+// FinalWeekStart è l'istante da cui parte l'ultima settimana del programma.
+func (p *UserProgram) FinalWeekStart() time.Time {
+	total := p.TotalWeeks
+	if total < 1 {
+		total = 1
+	}
+	return p.StartedAt.Add(time.Duration(total-1) * 7 * 24 * time.Hour)
+}
+
+// IsComplete dice se il programma è arrivato in fondo: si è nell'ultima
+// settimana e le sessioni previste per quella settimana sono state fatte tutte.
+//
+// `sessionsInFinalWeek` va contato da FinalWeekStart in poi, non dentro una
+// finestra chiusa di sette giorni: chi finisce il programma con settimane di
+// ritardo ha comunque completato l'ultima settimana, e un conteggio a finestra
+// lo lascerebbe in un programma che non finisce mai.
+func (p *UserProgram) IsComplete(now time.Time, sessionsInFinalWeek int) bool {
+	if p.WeekAt(now) < p.TotalWeeks {
+		return false
+	}
+	perWeek := p.DaysPerWeek
+	if perWeek < 1 {
+		// Un programma senza giorni previsti si considererebbe finito subito.
+		perWeek = 1
+	}
+	return sessionsInFinalWeek >= perWeek
+}
+
 type ScheduleItem struct {
 	Day    string  `json:"day"`
 	Name   string  `json:"name"`

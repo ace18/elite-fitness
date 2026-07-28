@@ -102,7 +102,8 @@ func main() {
 	oauthH := handler.NewOAuthHandler(oauthRegistry, oauthStateRepo, userRepo, cfg.FrontendURL)
 	programH := handler.NewProgramHandler(programRepo, aiSvc)
 	workoutH := handler.NewWorkoutHandler(workoutSvc)
-	sessionH := handler.NewSessionHandler(sessionRepo)
+	completer := service.NewProgramCompleter(programRepo, sessionRepo)
+	sessionH := handler.NewSessionHandler(sessionRepo, completer)
 	progressH := handler.NewProgressHandler(sessionRepo, programRepo)
 
 	// router

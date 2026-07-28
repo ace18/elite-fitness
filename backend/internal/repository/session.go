@@ -16,6 +16,17 @@ type SessionRepo struct {
 
 func NewSessionRepo(db *pgxpool.Pool) *SessionRepo { return &SessionRepo{db: db} }
 
+// CountSessionsForProgramSince conta le sessioni registrate per un programma a
+// partire da `since`. Serve a capire se l'ultima settimana è stata completata.
+func (r *SessionRepo) CountSessionsForProgramSince(ctx context.Context, programID string, since time.Time) (int, error) {
+	var n int
+	err := r.db.QueryRow(ctx,
+		`SELECT count(*) FROM session_logs WHERE program_id = $1 AND completed_at >= $2`,
+		programID, since,
+	).Scan(&n)
+	return n, err
+}
+
 func (r *SessionRepo) SaveSession(ctx context.Context, s *model.SessionLog) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {

@@ -71,6 +71,18 @@ func (r *ProgramRepo) GetActiveProgram(ctx context.Context, userID string) (*mod
 	return p, nil
 }
 
+// Archive chiude un programma portato a termine. A differenza di
+// DeactivateAll segna anche completed_at, che è ciò che distingue "finito" da
+// "sostituito con un altro piano".
+func (r *ProgramRepo) Archive(ctx context.Context, programID string) error {
+	_, err := r.db.Exec(ctx,
+		`UPDATE user_programs
+		 SET is_active = FALSE, completed_at = NOW()
+		 WHERE id = $1 AND is_active = TRUE`,
+		programID)
+	return err
+}
+
 func (r *ProgramRepo) DeactivateAll(ctx context.Context, userID string) error {
 	_, err := r.db.Exec(ctx,
 		`UPDATE user_programs SET is_active = FALSE WHERE user_id = $1`, userID)
