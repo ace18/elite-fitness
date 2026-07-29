@@ -1,4 +1,4 @@
-// api.js — real HTTP client for the Go backend (backend/, chi + pgx).
+// api.js — real HTTP client for the Go backend (repo root, chi + pgx).
 //
 // In production the Go binary serves this bundle itself, so the API is same
 // origin and requests are relative — no hostname is baked into the build.
@@ -109,7 +109,7 @@ export function est1RM(w, reps) {
 }
 
 // progressive-overload suggestion from last set's RPE. Mirrors suggestNext()
-// in backend/internal/service/workout.go — keep the two in sync.
+// in internal/service/workout.go — keep the two in sync.
 export function suggestNext(weight, rpe, step = 2.5) {
   if (rpe == null) return weight;
   if (rpe <= 7) return +(weight + step).toFixed(1);

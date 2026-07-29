@@ -6,15 +6,17 @@ FROM node:24-alpine AS web
 
 WORKDIR /src
 RUN corepack enable
+# Senza CI=true pnpm si aspetta un TTY quando decide di rifare node_modules,
+# e in build fallisce invece di procedere.
+ENV CI=true
 
-# Prima i manifest: finché non cambiano, il layer di install resta in cache e
-# il rebuild tocca solo il bundle.
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# Un COPY solo: copiare prima i manifest per l'install e poi il resto rimetteva
+# lockfile e package.json sopra l'albero già installato, e pnpm li vedeva più
+# recenti di node_modules — quindi voleva reinstallare comunque. L'install qui
+# dura un paio di secondi: non vale un layer di cache che si invalida da solo.
+COPY web/ ./
 RUN pnpm install --frozen-lockfile
 
-COPY svelte.config.js vite.config.js jsconfig.json ./
-COPY static ./static
-COPY src ./src
 # VITE_API_URL resta volutamente non impostata: in build di produzione api.js
 # usa URL relativi, perché l'API sta sulla stessa origine.
 RUN pnpm build
@@ -23,10 +25,13 @@ RUN pnpm build
 FROM golang:1.24-alpine AS api
 
 WORKDIR /src
-COPY backend/go.mod backend/go.sum ./
+COPY go.mod go.sum ./
 RUN go mod download
 
-COPY backend/ ./
+# Solo i sorgenti Go, non `COPY . .`: così una modifica al frontend non
+# invalida la cache di questo stage.
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
 # CGO spento: binario statico, così l'immagine finale non ha bisogno di libc.
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/server ./cmd/server
 

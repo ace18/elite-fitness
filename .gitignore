@@ -1,7 +1,8 @@
 node_modules
-/build
-/.svelte-kit
-/package
+/web/build
+/web/.svelte-kit
+/web/package
+/bin
 .env
 .env.*
 !.env.example

@@ -1,74 +1,90 @@
-# ELITE — Strength Training (SvelteKit)
+# ELITE — Strength Training
 
-A SvelteKit port of the ELITE fitness prototype: a mobile-first strength-training
-PWA with onboarding, passwordless auth, a workout dashboard, a focus-mode session
-logger with auto-progression and a rest timer, a post-workout receipt, a progress
-dashboard, and a plan picker (curated programs + a custom-plan questionnaire).
+A mobile-first strength-training PWA: onboarding, passwordless auth (magic link +
+OAuth), a workout dashboard, a focus-mode session logger with auto-progression and
+a rest timer, a post-workout receipt, a progress dashboard, and a plan picker
+(curated programs + an AI-generated custom plan).
+
+Two halves in one repo, shipped as **one container**: a Go API at the root and a
+SvelteKit SPA in `web/`. In production the Go binary serves the built SPA itself,
+so there is a single origin — no CORS, and the OAuth `redirect_uri` matches the
+public domain.
+
+## Layout
+
+```
+cmd/server/          # entrypoint
+internal/
+  config/            # env → Config
+  db/                # pool + migrations (applied on boot)
+  handler/           # HTTP handlers, SPA static serving
+  middleware/        # JWT auth, Cloudflare client-IP
+  model/             # domain types
+  repository/        # SQL
+  service/           # auth, email, oauth, workout, AI plans, pruning
+web/                 # SvelteKit SPA (its own package.json)
+  src/lib/api.js     # HTTP client for the API above
+  src/routes/        # one route per screen
+Dockerfile           # multi-stage: builds both halves into one image
+```
 
 ## Run it
 
+Two processes in development — vite serves the frontend on its own port and talks
+to the API cross-origin.
+
 ```bash
-cd sveltekit-elite
-npm install
-npm run dev      # http://localhost:5173
+# 1. Postgres (throwaway)
+docker run -d --rm --name elite-pg -e POSTGRES_PASSWORD=test -e POSTGRES_DB=elite \
+  -p 55432:5432 postgres:16-alpine
+
+# 2. API — copy .env.example to .env first
+DATABASE_URL="postgres://postgres:test@localhost:55432/elite?sslmode=disable" \
+APP_ENV=development FRONTEND_URL=http://localhost:5173 go run ./cmd/server
+
+# 3. Frontend
+cd web && pnpm install && pnpm dev      # http://localhost:5173
 ```
 
-Build a static SPA bundle:
+Migrations run automatically on boot. In development the magic-link endpoint
+returns a `devToken` when `RESEND_API_KEY` is unset, so you can log in without
+sending mail.
 
 ```bash
-npm run build
-npm run preview
+go test ./...            # backend
+cd web && pnpm build     # SPA bundle
+cd web && pnpm check:i18n
 ```
 
 > The app renders inside a fixed 402×874 iPhone frame that auto-scales to your
 > viewport — open it on a desktop browser and it letterboxes; resize freely.
 
+## Production
+
+```bash
+docker build -t elite .
+```
+
+The image builds both halves and sets `STATIC_DIR=/app/static`, which is what
+makes the binary serve the SPA. Required environment: `DATABASE_URL`,
+`JWT_SECRET`, `RESEND_API_KEY`, `ANTHROPIC_API_KEY`, `APP_ENV=production`, and
+`API_URL`/`FRONTEND_URL` both set to the public hostname. Behind Cloudflare also
+set `TRUST_PROXY_HEADERS=true` — see `.env.example` for why each one matters.
+
+Run **one replica**: migrations apply on boot and the plan-generation job store is
+in-process.
+
 ## How it's built
 
 - **Svelte 5 + SvelteKit 2** with the runes API (`$state`, `$derived`, `$props`, `$effect`).
-- **SPA mode** — `src/routes/+layout.js` sets `ssr = false`. The app uses
-  `localStorage` as a mock backend, so everything runs client-side. Build output
-  is a static bundle (`@sveltejs/adapter-static`, SPA fallback to `index.html`).
-- **Routing = screens.** Each app screen is a route under `src/routes/`. Navigation
-  uses `goto()`; the bottom tab bar highlights the active route from `$page`.
-- **Shared state** lives in `src/lib/stores.js` (Svelte stores for the workout,
-  program, progress, and the in-flight session summary handed to `/receipt`).
-- **Mock backend** is `src/lib/api.js`. Every call is `async` and simulates latency,
-  so swapping `mock(...)` for `fetch('/api/...')` later requires no UI changes.
-
-## Project structure
-
-```
-src/
-  app.html              # document shell + Manrope font
-  app.css               # design system (tokens, type, buttons, cards, animations)
-  lib/
-    api.js              # mock backend (localStorage-backed)
-    stores.js           # workout / program / progress / summary stores
-    plans.js            # curated plans, questionnaire, recommendation engine
-    components/
-      device/           # Stage (auto-scale), IOSDevice bezel, IOSStatusBar
-      ui/               # Btn, Screen, Ring, Sparkline, Stepper, RPEScale,
-                        # Delta, Toast, MiniStat, Avatar, Logo, Loading, TabBar
-  routes/
-    +layout.svelte      # wraps every route in the device frame
-    +layout.js          # ssr = false (SPA)
-    +page.svelte        # entry → /home or /onboarding
-    onboarding/         # value carousel
-    login/              # passwordless auth (OAuth + magic link)
-    home/               # dashboard
-    train/              # active program + next session
-    plan/               # choose a plan (browse curated → or build custom)
-    session/            # focus-mode set logger + rest timer
-    receipt/            # post-workout summary
-    progress/           # metrics dashboard
-    you/                # profile + settings
-```
-
-## Connecting a real backend
-
-Replace the bodies of the methods in `src/lib/api.js` with real `fetch` calls.
-The screens consume the stores in `src/lib/stores.js`, so as long as the shapes
-stay the same, no screen code needs to change. Drop `ssr = false` from
-`+layout.js` (and switch to `@sveltejs/adapter-auto` or a server adapter) once
-data no longer depends on `localStorage`.
+- **SPA mode** — `web/src/routes/+layout.js` sets `ssr = false`; the build is a
+  static bundle (`@sveltejs/adapter-static`, fallback to `index.html`). All data
+  comes from the Go API.
+- **Routing = screens.** Each screen is a route under `web/src/routes/`.
+- **Shared state** lives in `web/src/lib/stores.js`.
+- **Go API** — chi + pgx, JWT auth. Errors are returned as stable machine codes
+  (`handler/helpers.go`); the client owns the translations, since the backend
+  doesn't know the user's language.
+- **AI plan generation is asynchronous.** `POST /api/plans/generate` returns
+  `202 {jobId}` and the client polls, because generation outlives Cloudflare's
+  ~100s origin timeout. `API.generatePlan()` hides the polling from callers.
