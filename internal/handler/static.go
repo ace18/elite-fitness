@@ -1,11 +1,20 @@
 package handler
 
 import (
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 )
+
+func init() {
+	// Go non conosce .webmanifest, quindi http.FileServer ricade sullo sniffing
+	// e lo serve come text/plain. I browser sono incoerenti nell'accettarlo, e
+	// un manifest rifiutato significa app non installabile — senza però nessun
+	// errore visibile, il pulsante "installa" semplicemente non compare.
+	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
+}
 
 // SPA serve il frontend compilato (adapter-static, fallback su index.html).
 //
