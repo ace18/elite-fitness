@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -10,15 +11,17 @@ import (
 	"github.com/elitecoach/backend/internal/model"
 	"github.com/elitecoach/backend/internal/repository"
 	"github.com/elitecoach/backend/internal/service"
+	"github.com/go-chi/chi/v5"
 )
 
 type ProgramHandler struct {
 	programs *repository.ProgramRepo
 	ai       *service.AIService
+	planJobs *service.PlanJobStore
 }
 
-func NewProgramHandler(programs *repository.ProgramRepo, ai *service.AIService) *ProgramHandler {
-	return &ProgramHandler{programs: programs, ai: ai}
+func NewProgramHandler(programs *repository.ProgramRepo, ai *service.AIService, planJobs *service.PlanJobStore) *ProgramHandler {
+	return &ProgramHandler{programs: programs, ai: ai, planJobs: planJobs}
 }
 
 func (h *ProgramHandler) GetPlans(w http.ResponseWriter, r *http.Request) {
@@ -136,13 +139,44 @@ func (h *ProgramHandler) GeneratePlan(w http.ResponseWriter, r *http.Request) {
 		input.Length = 60
 	}
 
-	program, err := h.ai.GeneratePlan(r.Context(), userID, input)
-	if err != nil {
-		// Il dettaglio dell'errore (chiave API, rifiuto del modello, …) resta
-		// nei log: al client basta sapere che non è riuscita.
-		log.Printf("generate plan for %s: %v", userID, err)
-		jsonError(w, ErrPlanGeneration, http.StatusInternalServerError)
+	// Non si genera dentro la richiesta: ci vogliono minuti e il tunnel
+	// Cloudflare stacca l'origine dopo ~100s. Si avvia il lavoro e si risponde
+	// subito con l'id da interrogare (vedi service/planjob.go).
+	job := h.planJobs.Start(userID,
+		func(ctx context.Context) (*model.UserProgram, error) {
+			return h.ai.GeneratePlan(ctx, userID, input)
+		},
+		func(err error) string {
+			// Il dettaglio (chiave API, rifiuto del modello, …) resta nei log:
+			// al client basta sapere che non è riuscita.
+			log.Printf("generate plan for %s: %v", userID, err)
+			return ErrPlanGeneration
+		},
+	)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(map[string]any{"jobId": job.ID})
+}
+
+// GetPlanJob — stato di una generazione avviata con POST /api/plans/generate.
+func (h *ProgramHandler) GetPlanJob(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r)
+	job, ok := h.planJobs.Get(chi.URLParam(r, "jobId"), userID)
+	if !ok {
+		// Anche il job di un altro utente finisce qui: l'id da solo non deve
+		// rivelare nulla, nemmeno che esiste.
+		jsonError(w, ErrPlanJobNotFound, http.StatusNotFound)
 		return
 	}
-	jsonOK(w, program)
+
+	out := map[string]any{"status": string(job.Status)}
+	switch job.Status {
+	case service.PlanJobDone:
+		out["program"] = job.Program
+	case service.PlanJobFailed:
+		out["code"] = job.ErrCode
+		out["error"] = errorMessages[job.ErrCode]
+	}
+	jsonOK(w, out)
 }

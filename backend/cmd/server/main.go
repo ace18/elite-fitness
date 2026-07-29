@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/elitecoach/backend/internal/config"
@@ -96,11 +97,12 @@ func main() {
 
 	workoutSvc := service.NewWorkoutService(programRepo)
 	aiSvc := service.NewAIService(cfg.AnthropicKey, programRepo, pool)
+	planJobs := service.NewPlanJobStore()
 
 	// handlers
 	authH := handler.NewAuthHandler(authSvc, userRepo)
 	oauthH := handler.NewOAuthHandler(oauthRegistry, oauthStateRepo, userRepo, cfg.FrontendURL)
-	programH := handler.NewProgramHandler(programRepo, aiSvc)
+	programH := handler.NewProgramHandler(programRepo, aiSvc, planJobs)
 	workoutH := handler.NewWorkoutHandler(workoutSvc)
 	completer := service.NewProgramCompleter(programRepo, sessionRepo)
 	sessionH := handler.NewSessionHandler(sessionRepo, completer)
@@ -108,21 +110,37 @@ func main() {
 
 	// router
 	r := chi.NewRouter()
-	// RealIP riscrive RemoteAddr da X-Forwarded-For, che è ciò su cui il rate
-	// limiter fa da chiave. Va abilitato solo dietro un proxy fidato: esposto
-	// direttamente, chiunque aggirerebbe il limite falsificando l'header.
+	// Il rate limiter delle magic link fa da chiave sull'IP del client, quindi
+	// RemoteAddr dev'essere quello vero. Dietro Cloudflare l'unico header
+	// attendibile è CF-Connecting-IP: X-Forwarded-For e True-Client-IP sono
+	// falsificabili dal client (vedi middleware/realip.go). Da tenere spento se
+	// il backend è esposto direttamente.
 	if cfg.TrustProxyHeaders {
-		r.Use(chimiddleware.RealIP)
-		fmt.Println("[warn] TRUST_PROXY_HEADERS=true — X-Forwarded-For is trusted; only correct behind a proxy")
+		r.Use(middleware.StripForwardedHeaders)
+		r.Use(middleware.CloudflareIP)
+		fmt.Println("[warn] TRUST_PROXY_HEADERS=true — CF-Connecting-IP is trusted; only correct behind Cloudflare")
 	}
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{cfg.FrontendURL},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
-		AllowCredentials: true,
-	}))
+	// Una sola origine (STATIC_DIR impostato) vuol dire nessuna richiesta
+	// cross-origin da autorizzare: il CORS serve solo in sviluppo, dove vite
+	// gira su una porta diversa.
+	if cfg.StaticDir == "" {
+		r.Use(cors.Handler(cors.Options{
+			AllowedOrigins:   []string{cfg.FrontendURL},
+			AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
+			AllowCredentials: true,
+		}))
+	}
+
+	// Health check: Coolify lo interroga per sapere se il container è vivo.
+	// Volutamente senza toccare il DB — deve dire "il processo risponde", non
+	// "tutta la pila è sana", altrimenti un blip di Postgres fa riavviare l'app.
+	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"ok"}`))
+	})
 
 	// public auth routes
 	r.Post("/api/auth/magic-link", authH.SendMagicLink)
@@ -143,16 +161,29 @@ func main() {
 		r.Post("/api/program", programH.SetProgram)
 		r.Get("/api/plans", programH.GetPlans)
 		r.Post("/api/plans/generate", programH.GeneratePlan)
+		r.Get("/api/plans/generate/{jobId}", programH.GetPlanJob)
 		r.Post("/api/sessions", sessionH.SaveSession)
 		r.Get("/api/sessions/last", sessionH.GetLastSession)
 		r.Get("/api/progress", progressH.GetProgress)
 		r.Post("/api/progress/weight", progressH.LogWeight)
 	})
 
+	// Il frontend compilato, se c'è, sta sotto la stessa origine dell'API.
+	// Va registrato per ultimo: è il catch-all di tutto ciò che non è una rotta
+	// dichiarata sopra.
+	if cfg.StaticDir != "" {
+		if _, err := os.Stat(filepath.Join(cfg.StaticDir, "index.html")); err != nil {
+			// Meglio non partire che servire 404 su ogni pagina finché qualcuno
+			// non se ne accorge.
+			log.Fatalf("STATIC_DIR=%s has no index.html: %v", cfg.StaticDir, err)
+		}
+		r.NotFound(handler.SPA(cfg.StaticDir).ServeHTTP)
+		fmt.Printf("[static] serving SPA from %s\n", cfg.StaticDir)
+	}
+
 	addr := ":" + cfg.Port
 	fmt.Printf("EliteCoach backend listening on %s\n", addr)
 	if err := http.ListenAndServe(addr, r); err != nil {
 		log.Fatal(err)
 	}
-	_ = os.Getenv // suppress unused import
 }

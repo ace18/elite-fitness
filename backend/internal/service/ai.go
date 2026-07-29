@@ -102,6 +102,16 @@ var planToolSchema = anthropic.ToolParam{
 }
 
 func (s *AIService) GeneratePlan(ctx context.Context, userID string, input GeneratePlanInput) (*model.UserProgram, error) {
+	planData, err := s.requestPlan(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	return s.savePlan(ctx, userID, planData)
+}
+
+// requestPlan è la sola parte che parla con Claude: separata da savePlan così
+// si può testare senza database (vedi ai_test.go).
+func (s *AIService) requestPlan(ctx context.Context, input GeneratePlanInput) (aiPlanOutput, error) {
 	prompt := fmt.Sprintf(
 		`You are an expert strength and conditioning coach.
 Create a complete, evidence-based training program for:
@@ -115,34 +125,47 @@ Pick %d consecutive weekdays starting Monday.`,
 		input.Days,
 	)
 
-	resp, err := s.client.Messages.New(ctx, anthropic.MessageNewParams{
+	// In streaming: su Opus 5 il thinking è attivo di default e condivide
+	// MaxTokens con la risposta, quindi il budget è alto — e sopra ~16k token
+	// una richiesta non-streaming rischia di sbattere nei timeout HTTP dell'SDK
+	// prima ancora di avere una risposta.
+	stream := s.client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
 		Model:      "claude-opus-5",
-		MaxTokens:  16000,
+		MaxTokens:  32000,
 		Tools:      []anthropic.ToolUnionParam{{OfTool: &planToolSchema}},
 		ToolChoice: anthropic.ToolChoiceParamOfTool("create_training_plan"),
 		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(anthropic.NewTextBlock(prompt)),
 		},
 	})
-	if err != nil {
-		return nil, fmt.Errorf("claude API: %w", err)
+
+	// Accumulate ricompone i delta in un Message completo, come se fosse
+	// arrivato in un colpo solo: l'input del tool_use arriva a pezzi
+	// (input_json_delta) ed è JSON valido solo a blocco chiuso.
+	var resp anthropic.Message
+	var planData aiPlanOutput
+	for stream.Next() {
+		if err := resp.Accumulate(stream.Current()); err != nil {
+			return planData, fmt.Errorf("claude API: %w", err)
+		}
+	}
+	if err := stream.Err(); err != nil {
+		return planData, fmt.Errorf("claude API: %w", err)
 	}
 
 	// extract tool_use block
-	var planData aiPlanOutput
 	for _, block := range resp.Content {
 		if tu, ok := block.AsAny().(anthropic.ToolUseBlock); ok {
 			if err := json.Unmarshal(tu.Input, &planData); err != nil {
-				return nil, err
+				return planData, err
 			}
 			break
 		}
 	}
 	if planData.Name == "" {
-		return nil, fmt.Errorf("claude did not return a training plan")
+		return planData, fmt.Errorf("claude did not return a training plan")
 	}
-
-	return s.savePlan(ctx, userID, planData)
+	return planData, nil
 }
 
 func (s *AIService) savePlan(ctx context.Context, userID string, plan aiPlanOutput) (*model.UserProgram, error) {

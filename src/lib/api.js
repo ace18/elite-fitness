@@ -1,7 +1,19 @@
 // api.js — real HTTP client for the Go backend (backend/, chi + pgx).
-// The base URL comes from VITE_API_URL; see .env.example.
+//
+// In production the Go binary serves this bundle itself, so the API is same
+// origin and requests are relative — no hostname is baked into the build.
+// In dev, vite runs on its own port and needs the backend's absolute URL.
+// VITE_API_URL overrides both; see .env.example.
 
-const BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:8080').replace(/\/+$/, '');
+const BASE = (
+  import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:8080' : '')
+).replace(/\/+$/, '');
+
+// Plan generation is polled, not awaited in one request — see generatePlan().
+const PLAN_POLL_INTERVAL_MS = 2000;
+const PLAN_POLL_TIMEOUT_MS = 10 * 60 * 1000;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const TOKEN_KEY = 'elite.token';
 const USER_KEY = 'elite.user';
@@ -183,9 +195,29 @@ export const API = {
   setProgram(templateId) {
     return request('/api/program', { method: 'POST', body: { templateId } });
   },
-  // { goal, level, days, length, notes } -> generated UserProgram (slow: AI call)
-  generatePlan(input) {
-    return request('/api/plans/generate', { method: 'POST', body: input });
+  // { goal, level, days, length, notes } -> generated UserProgram.
+  //
+  // Generating takes minutes, so the backend runs it in the background: the
+  // POST answers immediately with a job id and we poll for the result. Holding
+  // one long request open instead would die at the Cloudflare tunnel's ~100s
+  // origin timeout, with the generation still completing server-side — the user
+  // would see a failure and then find a program they never saw appear.
+  //
+  // Callers still just await this and get the program back.
+  async generatePlan(input) {
+    const { jobId } = await request('/api/plans/generate', { method: 'POST', body: input });
+
+    const deadline = Date.now() + PLAN_POLL_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      await sleep(PLAN_POLL_INTERVAL_MS);
+      const job = await request(`/api/plans/generate/${jobId}`);
+      if (job.status === 'done') return job.program;
+      if (job.status === 'failed') {
+        throw new ApiError(500, job.error ?? 'plan generation failed', job);
+      }
+    }
+    // The job may still finish server-side; we just stop waiting on it.
+    throw new ApiError(504, 'plan generation timed out', { code: 'plan_generation_timeout' });
   },
 
   logWeight(weight, unit = 'kg') {

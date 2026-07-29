@@ -37,6 +37,8 @@ const (
 	ErrPlanInput        = "plan_input_required"
 	ErrWeightRequired   = "weight_required"
 	ErrPlanGeneration   = "plan_generation_failed"
+	ErrPlanJobNotFound  = "plan_job_not_found"
+	ErrNotFound         = "not_found"
 )
 
 // Testo inglese associato a ogni codice. Resta nella risposta come `error`:
@@ -61,6 +63,8 @@ var errorMessages = map[string]string{
 	ErrPlanInput:        "goal, level, days required",
 	ErrWeightRequired:   "weight required",
 	ErrPlanGeneration:   "plan generation failed",
+	ErrPlanJobNotFound:  "plan generation not found",
+	ErrNotFound:         "not found",
 }
 
 func jsonError(w http.ResponseWriter, code string, status int) {

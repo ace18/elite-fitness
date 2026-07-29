@@ -29,6 +29,11 @@ type Config struct {
 	// nelle rispettive console.
 	APIURL string
 
+	// StaticDir — cartella con il frontend compilato da servire dallo stesso
+	// binario. Vuota in sviluppo (ci pensa vite su :5173); in produzione è
+	// quello che rende l'app una sola origine.
+	StaticDir string
+
 	GoogleClientID     string
 	GoogleClientSecret string
 
@@ -88,6 +93,7 @@ func Load() *Config {
 
 		TrustProxyHeaders:  os.Getenv("TRUST_PROXY_HEADERS") == "true",
 		APIURL:             apiURL,
+		StaticDir:          os.Getenv("STATIC_DIR"),
 		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		AppleTeamID:        os.Getenv("APPLE_TEAM_ID"),

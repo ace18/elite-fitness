@@ -1,0 +1,21 @@
+# I segreti veri non devono nemmeno entrare nel contesto di build: un COPY
+# distratto li infilerebbe in un layer dell'immagine, da cui non si tolgono più.
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+node_modules
+build
+.svelte-kit
+package
+backend/bin
+
+.git
+.github
+.claude
+*.md
+!README.md
+.DS_Store
