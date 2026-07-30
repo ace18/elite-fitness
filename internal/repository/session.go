@@ -126,7 +126,15 @@ func (r *SessionRepo) LogBodyWeight(ctx context.Context, userID string, weight f
 }
 
 func (r *SessionRepo) GetProgressMetrics(ctx context.Context, userID string, weekGoal int) (*model.ProgressMetrics, error) {
-	m := &model.ProgressMetrics{WeekGoal: weekGoal}
+	// Slice inizializzate vuote, non nil: in Go una slice nil diventa `null` in
+	// JSON, e il client fa .filter()/.slice() su questi campi. Un utente appena
+	// registrato non ha PR né pesate, quindi era esattamente il caso più comune
+	// a rompersi. Il contratto è "array, eventualmente vuoto" — mai null.
+	m := &model.ProgressMetrics{
+		WeekGoal:   weekGoal,
+		PRs:        []model.PR{},
+		BodyWeight: model.BodyWeightStats{Series: []float64{}},
+	}
 
 	// streak
 	rows, err := r.db.Query(ctx,

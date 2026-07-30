@@ -41,7 +41,9 @@ func (r *ProgramRepo) GetTemplates(ctx context.Context) ([]model.PlanTemplate, e
 		return nil, err
 	}
 	defer rows.Close()
-	var templates []model.PlanTemplate
+	// Vuota, non nil: una slice nil diventa `null` in JSON e il client ci fa
+	// sopra .map()/.reduce(). Il contratto è sempre un array.
+	templates := []model.PlanTemplate{}
 	for rows.Next() {
 		var t model.PlanTemplate
 		if err := rows.Scan(&t.ID, &t.Name, &t.Goal, &t.Focus, &t.Level,
@@ -166,7 +168,9 @@ func (r *ProgramRepo) GetWorkoutsForWeek(ctx context.Context, programID string, 
 		return nil, err
 	}
 	defer rows.Close()
-	var workouts []model.ProgramWorkout
+	// Vuota, non nil: una slice nil diventa `null` in JSON e il client ci fa
+	// sopra .map()/.reduce(). Il contratto è sempre un array.
+	workouts := []model.ProgramWorkout{}
 	for rows.Next() {
 		var w model.ProgramWorkout
 		if err := rows.Scan(&w.ID, &w.ProgramID, &w.Name, &w.Focus,
@@ -191,7 +195,9 @@ func (r *ProgramRepo) GetExercisesForWorkout(ctx context.Context, workoutID stri
 		return nil, err
 	}
 	defer rows.Close()
-	var exercises []model.WorkoutExercise
+	// Vuota, non nil: una slice nil diventa `null` in JSON e il client ci fa
+	// sopra .map()/.reduce(). Il contratto è sempre un array.
+	exercises := []model.WorkoutExercise{}
 	for rows.Next() {
 		var ex model.WorkoutExercise
 		if err := rows.Scan(&ex.ID, &ex.ExerciseID, &ex.Name, &ex.Muscle,

@@ -8,17 +8,17 @@ type SessionLog struct {
 	// ClientSessionID — UUID generato dal client alla fine dell'allenamento e
 	// riusato a ogni tentativo di invio. È ciò che rende il salvataggio
 	// idempotente (migrazione 008). Nil per i client che non lo mandano.
-	ClientSessionID *string `json:"clientSessionId,omitempty"`
-	WorkoutID       *string `json:"workoutId,omitempty"`
-	ProgramID       *string `json:"programId,omitempty"`
-	Name        string    `json:"name"`
-	DurationMin *int      `json:"durationMin,omitempty"`
-	TotalVolume *float64  `json:"totalVolume,omitempty"`
-	TotalSets   *int      `json:"totalSets,omitempty"`
-	AvgRPE      *float64  `json:"avgRpe,omitempty"`
-	SessionRPE  *int      `json:"sessionRpe,omitempty"`
-	CompletedAt time.Time `json:"completedAt"`
-	Sets        []SetLog  `json:"sets,omitempty"`
+	ClientSessionID *string   `json:"clientSessionId,omitempty"`
+	WorkoutID       *string   `json:"workoutId,omitempty"`
+	ProgramID       *string   `json:"programId,omitempty"`
+	Name            string    `json:"name"`
+	DurationMin     *int      `json:"durationMin,omitempty"`
+	TotalVolume     *float64  `json:"totalVolume,omitempty"`
+	TotalSets       *int      `json:"totalSets,omitempty"`
+	AvgRPE          *float64  `json:"avgRpe,omitempty"`
+	SessionRPE      *int      `json:"sessionRpe,omitempty"`
+	CompletedAt     time.Time `json:"completedAt"`
+	Sets            []SetLog  `json:"sets,omitempty"`
 }
 
 // Tolleranza sull'orologio del client: un telefono un po' avanti non deve

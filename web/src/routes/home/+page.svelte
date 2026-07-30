@@ -34,6 +34,13 @@
 
   let w = $derived($workout);
   let p = $derived($progress);
+
+  // The API contract is "array, possibly empty" — nil slices used to serialise
+  // as null and crash this page for any user with no PRs yet. That's fixed
+  // server-side, but the service worker can still replay a response cached by
+  // an older build, so the guard stays.
+  let prs = $derived(p?.prs ?? []);
+  let exs = $derived(w?.exercises ?? []);
   let wkPct = $derived(p ? p.weekSessions / p.weekGoal : 0);
 
   const recent = [
@@ -88,7 +95,7 @@
                 <div class="t-title" style="font-size:27px; margin-top:4px;">{w.name}</div>
                 <div style="font-size:14px; opacity:.9; margin-top:3px;">{w.focus}</div>
                 <div class="row" style="gap:14px; margin-top:14px;">
-                  <span style="font-size:13px; font-weight:700;">◳ {w.exercises.length} {$t('common.exercises')}</span>
+                  <span style="font-size:13px; font-weight:700;">◳ {exs.length} {$t('common.exercises')}</span>
                   <span style="font-size:13px; font-weight:700;">◷ ~{w.estMin} {$t('common.min')}</span>
                 </div>
               </div>
@@ -120,7 +127,7 @@
         <div class="row" style="gap:11px;">
           <MiniStat label={$t('home.volume')} value={p.volume.value} unit="k kg" delta={p.volume.delta} />
           <MiniStat label={$t('home.est1rm')} value={p.est1RM.value} unit="kg" delta={p.est1RM.delta} />
-          <MiniStat label={$t('home.newPrs')} value={p.prs.filter((x) => x.fresh).length} unit="★" />
+          <MiniStat label={$t('home.newPrs')} value={prs.filter((x) => x.fresh).length} unit="★" />
         </div>
       </div>
 

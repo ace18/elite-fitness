@@ -25,10 +25,14 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      # 5433 sull'host per non litigare con un Postgres locale. L'app non usa
-      # questa porta (si parla con `db` sulla rete di Compose): serve solo per
-      # collegarsi con psql o un client grafico.
-      - '5433:5432'
+      # Porta alta perché su questa macchina 5432 E 5433 sono già occupate da
+      # Postgres nativi. Attenzione: se la porta è già presa, Docker non
+      # protesta — la pubblicazione perde e le connessioni da host finiscono
+      # sull'altro server, che poi si lamenta di un ruolo inesistente.
+      # L'app NON usa questa porta (parla con `db:5432` sulla rete di Compose):
+      # serve solo per psql o un client grafico, e per i test di integrazione.
+      #   TEST_DATABASE_URL="postgres://elite:elite@localhost:55432/elite?sslmode=disable" go test ./internal/repository/
+      - '${DB_PORT:-55432}:5432'
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U elite -d elite']
       interval: 5s

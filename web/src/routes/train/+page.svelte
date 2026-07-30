@@ -46,9 +46,12 @@
 
   let prog = $derived($program);
   let w = $derived($workout);
+  // Vedi home/progress: `exercises` non ha omitempty, quindi una slice vuota
+  // lato server arrivava come null e .reduce() qui sotto esplodeva.
+  let exs = $derived(w?.exercises ?? []);
   let wkPct = $derived(prog ? prog.week / prog.totalWeeks : 0);
-  let totalSets = $derived(w ? w.exercises.reduce((a, e) => a + e.sets, 0) : 0);
-  let bumps = $derived(w ? w.exercises.filter((e) => e.suggested > e.last).length : 0);
+  let totalSets = $derived(exs.reduce((a, e) => a + e.sets, 0));
+  let bumps = $derived(exs.filter((e) => e.suggested > e.last).length);
 </script>
 
 {#if prog === undefined || w === undefined}
@@ -122,16 +125,16 @@
               <div class="t-title" style="font-size:26px; margin-top:4px;">{w.name}</div>
               <div style="font-size:14px; opacity:.9; margin-top:3px;">{w.focus}</div>
               <div class="row" style="gap:14px; margin-top:14px;">
-                <span style="font-size:13px; font-weight:700;">◳ {w.exercises.length} {$t('common.exercises')}</span>
+                <span style="font-size:13px; font-weight:700;">◳ {exs.length} {$t('common.exercises')}</span>
                 <span style="font-size:13px; font-weight:700;">≡ {totalSets} {$t('common.sets')}</span>
                 <span style="font-size:13px; font-weight:700;">◷ ~{w.estMin} {$t('common.min')}</span>
               </div>
             </div>
           </div>
           <div style="padding:6px 16px 4px;">
-            {#each w.exercises as ex, i}
+            {#each exs as ex, i}
               {@const up = ex.suggested > ex.last}
-              <div class="row" style="padding:12px 0; border-bottom:{i < w.exercises.length - 1 ? '1px solid var(--line)' : 'none'};">
+              <div class="row" style="padding:12px 0; border-bottom:{i < exs.length - 1 ? '1px solid var(--line)' : 'none'};">
                 <div style="width:26px; height:26px; flex:0 0 auto; border-radius:9px; background:var(--brand-tint); display:flex; align-items:center; justify-content:center;">
                   <span style="color:var(--brand-ink); font-weight:800; font-size:13px;">{i + 1}</span>
                 </div>

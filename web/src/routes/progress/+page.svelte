@@ -21,6 +21,10 @@
   });
 
   let p = $derived($progress);
+  // Sempre un array: il contratto lo garantisce lato server, ma il service
+  // worker può restituire una risposta messa in cache da una build vecchia,
+  // dove `prs` era null e questa pagina andava in TypeError.
+  let prs = $derived(p?.prs ?? []);
   let wkPct = $derived(p ? p.weekSessions / p.weekGoal : 0);
   const heatmap = [0, 1, 3, 5, 6, 8, 9, 10, 12, 13];
 </script>
@@ -74,9 +78,9 @@
         {/each}
         <div class="card" style="padding:15px; background:var(--brand-tint);">
           <div class="t-label" style="font-size:10px; color:var(--brand-ink);">{$t('progress.recentPrs')}</div>
-          <div class="t-num" style="font-size:24px; margin-top:6px; color:var(--brand-ink);">{p.prs.length} <span style="font-size:15px;">★</span></div>
+          <div class="t-num" style="font-size:24px; margin-top:6px; color:var(--brand-ink);">{prs.length} <span style="font-size:15px;">★</span></div>
           <div style="margin-top:8px; display:flex; flex-direction:column; gap:3px;">
-            {#each p.prs.slice(0, 3) as r}
+            {#each prs.slice(0, 3) as r}
               <span style="font-size:11.5px; font-weight:700; color:var(--brand-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{r.lift}</span>
             {/each}
           </div>
@@ -87,8 +91,8 @@
       <div>
         <div class="t-label" style="margin:4px 2px 8px;">{$t('progress.personalRecords')}</div>
         <div class="card" style="padding:4px 16px;">
-          {#each p.prs as r, i}
-            <div class="row" style="padding:13px 0; border-bottom:{i < p.prs.length - 1 ? '1px solid var(--line)' : 'none'};">
+          {#each prs as r, i}
+            <div class="row" style="padding:13px 0; border-bottom:{i < prs.length - 1 ? '1px solid var(--line)' : 'none'};">
               <span style="font-size:18px; color:{r.fresh ? 'var(--amber)' : 'var(--ink4)'};">★</span>
               <div style="flex:1;"><div class="t-h2" style="font-size:15px;">{r.lift}</div><div class="t-sub" style="font-size:12.5px;">{r.when}</div></div>
               <span class="t-mono" style="font-size:15px; font-weight:800;">{r.value}</span>
