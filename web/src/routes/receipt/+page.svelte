@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { API } from '$lib/api.js';
-  import { summary, reloadProgress } from '$lib/stores.js';
+  import { summary, reloadProgress, refreshPendingSync } from '$lib/stores.js';
   import { t, intlLocale } from '$lib/i18n/index.js';
   import Screen from '$lib/components/ui/Screen.svelte';
   import Btn from '$lib/components/ui/Btn.svelte';
@@ -27,7 +27,16 @@
     saving = true;
     error = '';
     try {
-      await API.saveSession({ ...s, sessionRpe: sRpe });
+      const res = await API.saveSession({ ...s, sessionRpe: sRpe });
+      // Messo in coda invece di spedito: per l'utente è finita comunque, quindi
+      // si va avanti. Il riassunto si può togliere perché la coda è ora la copia
+      // durevole, e Allena mostra quante sincronizzazioni sono in sospeso.
+      if (res?.queued) {
+        summary.set(null);
+        await refreshPendingSync();
+        goto('/home');
+        return;
+      }
       await reloadProgress();
       summary.set(null);
       goto('/home');

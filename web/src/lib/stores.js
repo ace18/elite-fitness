@@ -55,6 +55,26 @@ export async function reloadAll() {
   }
 }
 
+// Quante scritture aspettano di partire. Guida l'indicatore su Allena: una coda
+// invisibile è indistinguibile da un allenamento perso.
+export const pendingSync = writable(0);
+
+export async function refreshPendingSync() {
+  pendingSync.set(await API.pendingSyncCount());
+}
+
+// Svuota la coda e aggiorna il contatore. Va chiamata all'avvio e quando torna
+// la rete; è sicuro chiamarla spesso perché il server è idempotente per
+// clientSessionId.
+export async function syncPending() {
+  const res = await API.syncPending();
+  pendingSync.set(res.remaining);
+  // Se qualcosa è partito, i dati derivati sul server (progressi, settimana)
+  // sono cambiati: vale la pena rileggerli.
+  if (res.sent > 0) await reloadProgress();
+  return res;
+}
+
 export async function reloadProgress() {
   try {
     progress.set(await API.getProgress());

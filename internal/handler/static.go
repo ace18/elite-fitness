@@ -44,11 +44,20 @@ func SPA(dir string) http.Handler {
 
 		full := filepath.Join(dir, clean)
 		if info, err := os.Stat(full); err == nil && !info.IsDir() {
+			switch {
 			// Gli asset di Vite hanno l'hash nel nome: immutabili per sempre.
 			// index.html invece no — se lo si cachasse, dopo un deploy l'utente
 			// resterebbe sullo shell vecchio che punta a bundle non più esistenti.
-			if strings.HasPrefix(clean, "_app/immutable/") {
+			case strings.HasPrefix(clean, "_app/immutable/"):
 				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+
+			// Il service worker decide quali versioni degli asset esistono: se
+			// resta in cache, resta in cache anche tutto il resto. Cloudflare
+			// cacha i .js sul suo edge per impostazione predefinita, quindi
+			// senza questo header un deploy potrebbe non arrivare mai ai
+			// client già installati.
+			case clean == "service-worker.js":
+				w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 			}
 			files.ServeHTTP(w, r)
 			return

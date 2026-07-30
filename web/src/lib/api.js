@@ -5,6 +5,8 @@
 // In dev, vite runs on its own port and needs the backend's absolute URL.
 // VITE_API_URL overrides both; see .env.example.
 
+import * as outbox from './outbox.js';
+
 const BASE = (
   import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:8080' : '')
 ).replace(/\/+$/, '');
@@ -17,6 +19,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const TOKEN_KEY = 'elite.token';
 const USER_KEY = 'elite.user';
+
+// Queue entries are tagged with their owner so two accounts sharing a phone
+// can't send each other's workouts. Email is the stable key we always have
+// locally without a round trip.
+const scopeKey = () => {
+  const raw = ls(() => localStorage.getItem(USER_KEY));
+  return (raw && parse(raw)?.email) || 'anonymous';
+};
+
+// How each queued write is replayed. The key is stored with the entry, so
+// renaming one of these would orphan whatever is already queued.
+const OUTBOX_SENDERS = {
+  session: (body) => request('/api/sessions', { method: 'POST', body }),
+  weight: (body) => request('/api/progress/weight', { method: 'POST', body })
+};
 
 export class ApiError extends Error {
   constructor(status, message, body) {
@@ -51,6 +68,11 @@ function clearSession() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
   });
+  // The HTTP cache is scoped to the origin, not to the user, so cached
+  // /api/progress and friends would be served to whoever signs in next on a
+  // shared phone. The outbox is deliberately NOT cleared: its entries carry
+  // their owner and simply won't be sent until that user is back.
+  navigator.serviceWorker?.controller?.postMessage({ type: 'purge-api-cache' });
 }
 
 function parse(text) {
@@ -220,19 +242,56 @@ export const API = {
     throw new ApiError(504, 'plan generation timed out', { code: 'plan_generation_timeout' });
   },
 
-  logWeight(weight, unit = 'kg') {
-    return request('/api/progress/weight', { method: 'POST', body: { weight, unit } });
+  async logWeight(weight, unit = 'kg') {
+    const body = { weight, unit };
+    try {
+      return await request('/api/progress/weight', { method: 'POST', body });
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 0) {
+        if (await outbox.enqueue(scopeKey(), 'weight', body)) return { queued: true };
+      }
+      throw e;
+    }
+  },
+
+  // ---- offline queue ---------------------------------------------------
+  //
+  // Writes that couldn't leave the device sit in an IndexedDB queue and are
+  // retried on reconnect. Reads aren't queued — the service worker serves the
+  // last known response for those.
+
+  pendingSyncCount() {
+    return outbox.count(scopeKey());
+  },
+
+  // Retries everything queued for the current user. Safe to call often: the
+  // server is idempotent per clientSessionId (migration 008), so a request
+  // that actually landed before the connection dropped won't be logged twice.
+  async syncPending() {
+    if (!getToken()) return { sent: 0, remaining: 0 };
+    return outbox.flush(scopeKey(), OUTBOX_SENDERS, {
+      isNetworkError: (e) => e instanceof ApiError && e.status === 0,
+      // A 4xx means the server understood and refused; resending the identical
+      // body will always get the same answer, so the entry is dropped rather
+      // than retried forever. 401 is the exception — the token may just have
+      // expired, and the workout should outlive it.
+      isPermanent: (e) =>
+        e instanceof ApiError && e.status >= 400 && e.status < 500 && e.status !== 401 && e.status !== 429
+    });
   },
 
   // ---- sessions --------------------------------------------------------
   // Maps the UI summary onto the backend's SessionLog. `setLog` carries the
   // per-set rows: without them set_logs stays empty and nothing downstream
   // works (no PRs, no est-1RM, no "last time" suggestions).
+  // Returns the server's response, or `{ queued: true }` when the network was
+  // unreachable and the workout went into the outbox instead. Callers must
+  // treat `queued` as success: the data is durable and will be sent. Anything
+  // other than a network failure still throws — a 400 is a real problem the
+  // user should see, not something to retry silently forever.
   async saveSession(summary) {
-    return request('/api/sessions', {
-      method: 'POST',
-      body: {
-        workoutId: summary.workoutId ?? null,
+    const body = {
+      workoutId: summary.workoutId ?? null,
         // No programId: the server stamps the session with the user's active
         // program itself, so anything sent here would just be ignored.
         //
@@ -252,9 +311,21 @@ export const API = {
         totalSets: summary.sets ?? null,
         avgRpe: summary.avgRpe ?? null,
         sessionRpe: summary.sessionRpe ?? null,
-        // is_pr is computed server-side
-        sets: summary.setLog ?? []
+      // is_pr is computed server-side
+      sets: summary.setLog ?? []
+    };
+
+    try {
+      return await request('/api/sessions', { method: 'POST', body });
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 0) {
+        // Unreachable, not refused. Queue it and report success — the workout
+        // is durable, and syncPending() will send it. If the enqueue itself
+        // fails (IndexedDB denied), rethrow so the caller keeps the summary and
+        // the retry banner rather than believing it was saved.
+        if (await outbox.enqueue(scopeKey(), 'session', body)) return { queued: true };
       }
-    });
+      throw e;
+    }
   }
 };

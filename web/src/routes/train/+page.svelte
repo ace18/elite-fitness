@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { API } from '$lib/api.js';
-  import { program, workout, reloadAll, summary } from '$lib/stores.js';
+  import { program, workout, reloadAll, summary, pendingSync, syncPending } from '$lib/stores.js';
   import { draftInfo, clearDraft } from '$lib/session-draft.js';
   import Screen from '$lib/components/ui/Screen.svelte';
   import { t } from '$lib/i18n/index.js';
@@ -32,6 +32,16 @@
   function discardDraft() {
     clearDraft();
     draft = null;
+  }
+
+  let syncing = $state(false);
+  async function retrySync() {
+    syncing = true;
+    try {
+      await syncPending();
+    } finally {
+      syncing = false;
+    }
   }
 
   let prog = $derived($program);
@@ -147,7 +157,21 @@
                 </span>
               </div>
             {/if}
-            {#if pendingSave}
+            {#if $pendingSync > 0}
+              <!-- In coda e fuori dalle mani dell'utente: non è un errore, ma
+                   dev'essere visibile, altrimenti "in coda" e "perso" si
+                   assomigliano troppo. -->
+              <div class="row" style="gap:8px; padding:10px 12px; background:var(--brand-tint); border-radius:12px; margin-bottom:12px;">
+                <span style="font-size:15px;">☁</span>
+                <span class="t-sub" style="font-size:12.5px; font-weight:700; color:var(--brand-ink); flex:1;">
+                  {$pendingSync === 1 ? $t('train.syncPendingOne') : $t('train.syncPendingMany', { n: $pendingSync })}
+                </span>
+              </div>
+              <button class="chip chip--tint" style="margin:0 auto 12px; display:block;" onclick={retrySync} disabled={syncing}>
+                {syncing ? $t('train.syncing') : $t('train.syncNow')}
+              </button>
+              <Btn block lg onclick={() => goto('/session')}>{$t('train.startSession')}</Btn>
+            {:else if pendingSave}
               <div class="row" style="gap:8px; padding:10px 12px; background:var(--up-tint); border-radius:12px; margin-bottom:12px;">
                 <span style="font-size:15px;">↻</span>
                 <span class="t-sub" style="font-size:12.5px; font-weight:700; color:#0a7a44; flex:1;">{$t('train.pendingSave')}</span>
