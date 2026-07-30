@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -27,22 +28,46 @@ func (r *SessionRepo) CountSessionsForProgramSince(ctx context.Context, programI
 	return n, err
 }
 
-func (r *SessionRepo) SaveSession(ctx context.Context, s *model.SessionLog) error {
+// SaveSession registra la sessione e dice se l'ha inserita davvero.
+//
+// `inserted == false` significa che il client aveva già mandato questo
+// ClientSessionID: non si scrive niente, s.ID viene riempito con la sessione
+// esistente e chi chiama deve saltare tutto ciò che non va rifatto due volte
+// (in particolare il controllo di completamento del programma).
+//
+// Il ritentativo NON deve riaggiungere le serie: appenderle alla sessione
+// originale sarebbe peggio di una sessione duplicata, perché falserebbe volume,
+// PR e conteggi senza che si veda una riga in più.
+func (r *SessionRepo) SaveSession(ctx context.Context, s *model.SessionLog) (bool, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer tx.Rollback(ctx)
 
 	err = tx.QueryRow(ctx,
 		`INSERT INTO session_logs
-		 (user_id, workout_id, program_id, name, duration_min, total_volume, total_sets, avg_rpe, session_rpe)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-		s.UserID, s.WorkoutID, s.ProgramID, s.Name, s.DurationMin,
-		s.TotalVolume, s.TotalSets, s.AvgRPE, s.SessionRPE,
+		 (user_id, client_session_id, workout_id, program_id, name, duration_min,
+		  total_volume, total_sets, avg_rpe, session_rpe, completed_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+		 ON CONFLICT (user_id, client_session_id) DO NOTHING
+		 RETURNING id`,
+		s.UserID, s.ClientSessionID, s.WorkoutID, s.ProgramID, s.Name, s.DurationMin,
+		s.TotalVolume, s.TotalSets, s.AvgRPE, s.SessionRPE, s.CompletedAt,
 	).Scan(&s.ID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Nessuna riga restituita = conflitto: la sessione c'è già. Si recupera
+		// il suo id e si esce senza toccare set_logs.
+		if err := r.db.QueryRow(ctx,
+			`SELECT id FROM session_logs WHERE user_id = $1 AND client_session_id = $2`,
+			s.UserID, s.ClientSessionID,
+		).Scan(&s.ID); err != nil {
+			return false, err
+		}
+		return false, nil
+	}
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	for i := range s.Sets {
@@ -68,10 +93,13 @@ func (r *SessionRepo) SaveSession(ctx context.Context, s *model.SessionLog) erro
 			set.Weight, set.Reps, set.RPE, set.IsPR,
 		).Scan(&set.ID)
 		if err != nil {
-			return err
+			return false, err
 		}
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (r *SessionRepo) GetLastSession(ctx context.Context, userID string) (*model.SessionLog, error) {

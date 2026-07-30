@@ -5,7 +5,7 @@
   import { goto } from '$app/navigation';
   import { API } from '$lib/api.js';
   import { workout, program, summary } from '$lib/stores.js';
-  import { saveDraft, loadDraft, clearDraft } from '$lib/session-draft.js';
+  import { saveDraft, loadDraft, clearDraft, newClientSessionId } from '$lib/session-draft.js';
   import Screen from '$lib/components/ui/Screen.svelte';
   import Btn from '$lib/components/ui/Btn.svelte';
   import Ring from '$lib/components/ui/Ring.svelte';
@@ -177,6 +177,12 @@
       const s = {
         workoutId: w.id,
         programId: prog?.id ?? null,
+        // Identità e istante di fine si fissano QUI, non al momento dell'invio:
+        // vengono persistiti col riassunto, così un ritentativo mezz'ora dopo
+        // manda la stessa identità (niente doppioni) e la stessa ora (la
+        // sessione resta datata a quando è stata fatta).
+        clientSessionId: newClientSessionId(),
+        completedAt: new Date().toISOString(),
         setLog,
         name: w.name,
         durationMin: Math.max(1, Math.round((Date.now() - startTime) / 60000)),

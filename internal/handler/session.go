@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/elitecoach/backend/internal/middleware"
 	"github.com/elitecoach/backend/internal/model"
@@ -29,6 +30,11 @@ func (h *SessionHandler) SaveSession(w http.ResponseWriter, r *http.Request) {
 	}
 	s.UserID = userID
 
+	// Quando è finito l'allenamento lo dice il client, perché può averlo fatto
+	// ore prima di riuscire a spedirlo. La clamp scarta solo i valori che
+	// falserebbero l'archiviazione automatica (vedi model.ClampCompletedAt).
+	s.CompletedAt = model.ClampCompletedAt(s.CompletedAt, time.Now())
+
 	// Il programma lo decide il server, non il client: il programId del body
 	// non è verificato e potrebbe puntare al programma di un altro utente. È
 	// anche ciò su cui si conta per capire se il programma è finito, quindi
@@ -40,8 +46,17 @@ func (h *SessionHandler) SaveSession(w http.ResponseWriter, r *http.Request) {
 		s.ProgramID = nil
 	}
 
-	if err := h.sessions.SaveSession(r.Context(), &s); err != nil {
+	inserted, err := h.sessions.SaveSession(r.Context(), &s)
+	if err != nil {
 		jsonError(w, ErrSaveSession, http.StatusInternalServerError)
+		return
+	}
+	if !inserted {
+		// Ritentativo di una sessione già registrata. Si risponde come al primo
+		// invio — per il client il salvataggio è andato, ed è vero — ma senza
+		// rifare il controllo di completamento: il programma era già stato
+		// valutato con questa sessione dentro.
+		jsonOK(w, map[string]any{"ok": true, "id": s.ID, "duplicate": true, "programCompleted": false})
 		return
 	}
 

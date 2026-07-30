@@ -53,6 +53,20 @@ function write(key, payload) {
   }, false);
 }
 
+// newClientSessionId — identità dell'allenamento verso il server.
+//
+// Va generata UNA volta, quando l'allenamento finisce, e finire dentro il
+// riassunto persistito: è ciò che rende il salvataggio idempotente, quindi ogni
+// ritentativo deve rimandare la stessa. Generarla al momento della POST
+// darebbe un id nuovo per tentativo e registrerebbe l'allenamento due volte.
+export function newClientSessionId() {
+  // randomUUID richiede un secure context: c'è su HTTPS e su localhost, non su
+  // http:// verso un IP. Senza il fallback l'id sarebbe undefined e
+  // l'idempotenza salterebbe in silenzio.
+  if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
+  return `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
 // ---- allenamento in corso -------------------------------------------------
 
 // Il draft porta dentro anche il workout completo, non solo gli indici: dopo un

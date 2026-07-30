@@ -235,13 +235,24 @@ export const API = {
         workoutId: summary.workoutId ?? null,
         // No programId: the server stamps the session with the user's active
         // program itself, so anything sent here would just be ignored.
+        //
+        // clientSessionId makes the save idempotent — retrying the same
+        // finished workout returns the original session instead of logging a
+        // second one. It's fixed when the workout ends and persisted with the
+        // summary, so every retry sends the same value.
+        clientSessionId: summary.clientSessionId ?? null,
+        // When the workout actually finished, which can be hours before we
+        // manage to send it. The server clamps it (nothing in the future) but
+        // otherwise stores it as given — the program's week progression and the
+        // final-week count are both derived from it.
+        completedAt: summary.completedAt ?? null,
         name: summary.name,
         durationMin: summary.durationMin ?? null,
         totalVolume: summary.volume ?? null,
         totalSets: summary.sets ?? null,
         avgRpe: summary.avgRpe ?? null,
         sessionRpe: summary.sessionRpe ?? null,
-        // completed_at defaults to NOW() server-side; is_pr is computed there too
+        // is_pr is computed server-side
         sets: summary.setLog ?? []
       }
     });
