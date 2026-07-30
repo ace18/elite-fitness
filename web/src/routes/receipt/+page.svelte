@@ -4,7 +4,8 @@
   import { goto } from '$app/navigation';
   import { API } from '$lib/api.js';
   import { summary, reloadProgress, refreshPendingSync } from '$lib/stores.js';
-  import { t, intlLocale } from '$lib/i18n/index.js';
+  import { t } from '$lib/i18n/index.js';
+  import { num } from '$lib/format.js';
   import Screen from '$lib/components/ui/Screen.svelte';
   import Btn from '$lib/components/ui/Btn.svelte';
   import RPEScale from '$lib/components/ui/RPEScale.svelte';
@@ -74,7 +75,7 @@
 
     <!-- stat grid -->
     <div class="stagger" style="display:grid; grid-template-columns:1fr 1fr; gap:11px; margin-top:24px;">
-      {#each [[$t('receipt.totalVolume'), s.volume.toLocaleString($intlLocale), 'kg', true, false], [$t('receipt.topSet'), s.topSet, '', false, false], [$t('receipt.avgRpe'), s.avgRpe ?? '—', '', false, false], [$t('receipt.newPrs'), s.prs.length, '★', false, true]] as [label, value, unit, big, accent]}
+      {#each [[$t('receipt.totalVolume'), $num(s.volume), 'kg', true, false], [$t('receipt.topSet'), s.topSet, '', false, false], [$t('receipt.avgRpe'), s.avgRpe ?? '—', '', false, false], [$t('receipt.newPrs'), s.prs.length, '★', false, true]] as [label, value, unit, big, accent]}
         <div class="card" style="padding:15px 16px; background:{accent ? 'var(--brand-tint)' : '#fff'};">
           <div class="t-label" style="font-size:10px;">{label}</div>
           <div style="display:flex; align-items:baseline; gap:4px; margin-top:6px;">
@@ -109,10 +110,10 @@
         <div class="row" style="padding:13px 0; border-bottom:{i < s.perExercise.length - 1 ? '1px solid var(--line)' : 'none'};">
           <div style="flex:1;">
             <div class="t-h2" style="font-size:15px;">{e.name}</div>
-            <div class="t-sub" style="font-size:12.5px;">{$t('receipt.setsAndVolume', { sets: e.sets, vol: e.vol.toLocaleString($intlLocale) })}</div>
+            <div class="t-sub" style="font-size:12.5px;">{$t('receipt.setsAndVolume', { sets: e.sets, vol: $num(e.vol) })}</div>
           </div>
           <span style="font-size:12.5px; font-weight:800; color:{same ? 'var(--ink3)' : up ? 'var(--up)' : 'var(--down)'};">
-            {same ? $t('receipt.same') : `${up ? '▲' : '▼'} ${e.best} kg`}
+            {same ? $t('receipt.same') : `${up ? '▲' : '▼'} ${$num(e.best)} kg`}
           </span>
         </div>
       {/each}

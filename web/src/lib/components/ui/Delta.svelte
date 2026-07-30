@@ -1,5 +1,7 @@
 <script>
   // Delta — colored ▲/▼ change indicator. invert=true means "down is good".
+  import { num } from '$lib/format.js';
+
   let { v, unit = '', invert = false } = $props();
 
   let pos = $derived(v > 0);
@@ -8,4 +10,4 @@
   let arrow = $derived(v === 0 ? '' : pos ? '▲' : '▼');
 </script>
 
-<span style="color:{col}; font-weight:800; font-size:12.5px;">{arrow} {v > 0 ? '+' : ''}{v}{unit}</span>
+<span style="color:{col}; font-weight:800; font-size:12.5px;">{arrow} {v > 0 ? '+' : ''}{$num(v)}{unit}</span>

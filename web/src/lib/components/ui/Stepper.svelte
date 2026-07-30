@@ -1,12 +1,13 @@
 <script>
   // Stepper — big +/- numeric control.
-  let { value, onChange, step = 2.5, min = 0, unit, big = false, decimals = 1 } = $props();
+  // Il valore si vede in grande mentre si registra un set: toFixed scrive
+  // sempre col punto, quindi in italiano compariva "102.5" invece di "102,5".
+  import { num } from '$lib/format.js';
+
+  let { value, onChange, step = 2.5, min = 0, unit, big = false } = $props();
 
   let sz = $derived(big ? 56 : 46);
 
-  function fmt(v) {
-    return Number.isInteger(v) ? `${v}` : v.toFixed(decimals).replace(/\.0$/, '');
-  }
   function bump(delta) {
     onChange(Math.max(min, +(value + delta).toFixed(2)));
   }
@@ -19,7 +20,7 @@
     onclick={() => bump(-step)}>−</button>
 
   <div style="text-align:center; flex:1; line-height:1;">
-    <span class="t-num" style="font-size:{big ? 52 : 38}px;">{fmt(value)}</span>
+    <span class="t-num" style="font-size:{big ? 52 : 38}px;">{$num(value)}</span>
     {#if unit}
       <span class="t-sub" style="font-size:{big ? 18 : 15}px; font-weight:700; margin-left:5px;">{unit}</span>
     {/if}

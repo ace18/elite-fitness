@@ -6,6 +6,8 @@
   import { API } from '$lib/api.js';
   import { workout, program, summary } from '$lib/stores.js';
   import { saveDraft, loadDraft, clearDraft, newClientSessionId } from '$lib/session-draft.js';
+  import { get } from 'svelte/store';
+  import { num, weightReps } from '$lib/format.js';
   import Screen from '$lib/components/ui/Screen.svelte';
   import Btn from '$lib/components/ui/Btn.svelte';
   import Ring from '$lib/components/ui/Ring.svelte';
@@ -149,7 +151,7 @@
 
     // PR check
     if (ex.prToBeat && weight >= ex.prToBeat) {
-      prs = [...prs, { lift: ex.name, value: `${weight} kg × ${reps}`, fresh: true }];
+      prs = [...prs, { lift: ex.name, value: get(weightReps)(weight, reps), fresh: true }];
       flashToast(`🏆 New PR — ${ex.name}!`);
     }
 
@@ -189,9 +191,9 @@
         volume: Math.round(volume),
         sets: flat.length,
         exercises: exs.length,
-        topSet: `${top.w} kg × ${top.r}`,
+        topSet: get(weightReps)(top.w, top.r),
         avgRpe: rpes.length ? +(rpes.reduce((a, b) => a + b, 0) / rpes.length).toFixed(1) : null,
-        prs: [...prs, ...(ex.prToBeat && weight >= ex.prToBeat ? [{ lift: ex.name, value: `${weight} kg × ${reps}`, fresh: true }] : [])],
+        prs: [...prs, ...(ex.prToBeat && weight >= ex.prToBeat ? [{ lift: ex.name, value: get(weightReps)(weight, reps), fresh: true }] : [])],
         perExercise: exs.map((e, i) => ({
           name: e.name,
           sets: nl[i].length,
@@ -268,12 +270,12 @@
               {/each}
             </div>
           </div>
-          <div class="t-sub" style="font-size:13.5px; margin-top:8px;">{$t('session.setOf', { i: setIndex + 1, n: ex.sets })} <b style="color:var(--ink2);">{ex.last} kg × {ex.targetReps}</b></div>
+          <div class="t-sub" style="font-size:13.5px; margin-top:8px;">{$t('session.setOf', { i: setIndex + 1, n: ex.sets })} <b style="color:var(--ink2);">{$weightReps(ex.last, ex.targetReps)}</b></div>
 
           {#if logged[exIndex].length > 0}
             <div class="row" style="gap:7px; margin-top:12px; flex-wrap:wrap;">
               {#each logged[exIndex] as s}
-                <span class="chip" style="background:var(--up-tint); color:#0a7a44;">✓ {s.w}×{s.r} · {s.rpe}</span>
+                <span class="chip" style="background:var(--up-tint); color:#0a7a44;">✓ {$num(s.w)}×{s.r} · {s.rpe}</span>
               {/each}
             </div>
           {/if}
@@ -291,7 +293,7 @@
             </div>
             <div class="divider" style="margin:16px 0;"></div>
             <div class="t-label" style="margin-bottom:6px;">{$t('session.reps')}</div>
-            <Stepper value={reps} onChange={(v) => (reps = v)} step={1} min={1} unit="reps" decimals={0} />
+            <Stepper value={reps} onChange={(v) => (reps = v)} step={1} min={1} unit="reps" />
           </div>
 
           <!-- RPE -->
@@ -323,7 +325,7 @@
             <span class="t-num" style="font-size:42px;">{fmtClock(rest)}</span>
           </Ring>
           <div class="t-sub" style="font-size:14px; margin-top:8px; text-align:center;">
-            {$t('session.upNext')}<b style="color:var(--ink);">{ex.name}</b><br />{$t('session.upNextSet', { i: setIndex + 1, w: weight, r: reps })}
+            {$t('session.upNext')}<b style="color:var(--ink);">{ex.name}</b><br />{$t('session.upNextSet', { i: setIndex + 1, w: $num(weight), r: reps })}
           </div>
         </div>
         <div class="row" style="gap:10px; margin-top:20px;">

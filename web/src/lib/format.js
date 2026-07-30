@@ -39,6 +39,17 @@ export const relativeDay = derived(intlLocale, ($loc) => {
   };
 });
 
+// num(102.5) → '102,5' in italiano, '102.5' in inglese. Anche le migliaia
+// cambiano: 14.120 contro 14,120.
+//
+// Restituisce il valore invariato se non è un numero, così si può applicare
+// senza controlli nei componenti generici che a volte ricevono già una stringa
+// (un '—' al posto di un RPE mancante, per esempio).
+export const num = derived(intlLocale, ($loc) => {
+  const nf = new Intl.NumberFormat($loc, { maximumFractionDigits: 1 });
+  return (v) => (typeof v === 'number' && Number.isFinite(v) ? nf.format(v) : v);
+});
+
 // weightReps(100, 5) → '100 kg × 5'  /  weightReps(102.5, 3) → '102,5 kg × 3' in it
 export const weightReps = derived([intlLocale, t], ([$loc, $t]) => {
   const nf = new Intl.NumberFormat($loc, { maximumFractionDigits: 1 });

@@ -5,7 +5,7 @@
   import { API } from '$lib/api.js';
   import { progress, reloadProgress } from '$lib/stores.js';
   import { t } from '$lib/i18n/index.js';
-  import { relativeDay, weightReps } from '$lib/format.js';
+  import { relativeDay, weightReps, num } from '$lib/format.js';
   import Screen from '$lib/components/ui/Screen.svelte';
   import Loading from '$lib/components/ui/Loading.svelte';
   import TabBar from '$lib/components/ui/TabBar.svelte';
@@ -70,7 +70,7 @@
           <div class="card" style="padding:15px;">
             <div class="t-label" style="font-size:10px;">{g.label}</div>
             <div style="display:flex; align-items:baseline; gap:4px; margin-top:6px;">
-              <span class="t-num" style="font-size:24px;">{g.value}</span>
+              <span class="t-num" style="font-size:24px;">{$num(g.value)}</span>
               <span class="t-sub" style="font-size:12.5px; font-weight:700;">{g.unit}</span>
             </div>
             <div style="margin-top:3px;"><Delta v={g.delta} invert={g.invert} /></div>
