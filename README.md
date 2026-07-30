@@ -70,8 +70,9 @@ cd web && pnpm build     # SPA bundle
 cd web && pnpm check:i18n
 ```
 
-> The app renders inside a fixed 402×874 iPhone frame that auto-scales to your
-> viewport — open it on a desktop browser and it letterboxes; resize freely.
+> Mobile-first: the app fills the viewport on a phone and sits in a centred
+> 520px column on wider screens. Safe-area insets are respected, so an installed
+> PWA clears the notch and the home indicator.
 
 ## Production
 

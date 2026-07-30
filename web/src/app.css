@@ -44,6 +44,27 @@ html, body { margin:0; height:100%; background:#e6ebef; overflow:hidden; }
 .app, .app *{ font-family:var(--fs); -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
 .app{ color:var(--ink); }
 
+/* Guscio dell'app.
+   `backdrop` riempie la finestra e si vede solo su schermi larghi, ai lati
+   della colonna. Su un telefono la colonna occupa tutto e sparisce.
+   position:fixed + height:100% invece di 100vh: su iOS 100vh conta anche la
+   barra degli indirizzi, quindi il fondo finirebbe sotto lo schermo. */
+.app-backdrop{
+  position:fixed; inset:0;
+  display:flex; justify-content:center;
+  background:radial-gradient(120% 120% at 50% 0%, #f7f9fb 0%, #e9edf1 60%, #e2e7ec 100%);
+}
+.app-shell{
+  width:100%; max-width:520px; height:100%;
+  display:flex; flex-direction:column;
+  background:var(--bg);
+  overflow:hidden;
+}
+@media (min-width:560px){
+  /* Solo su desktop: un bordo che stacca la colonna dallo sfondo. */
+  .app-shell{ box-shadow:0 20px 60px rgba(20,24,28,.14), 0 0 0 1px rgba(20,24,28,.06); }
+}
+
 /* ---- type helpers ---- */
 .t-display{ font-weight:800; letter-spacing:-0.03em; line-height:1.02; }
 .t-title{ font-weight:800; letter-spacing:-0.02em; }

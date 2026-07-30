@@ -14,7 +14,7 @@
   let active = $derived($page.url.pathname.split('/')[1] || 'home');
 </script>
 
-<div style="display:flex; padding:10px 8px calc(8px + 16px); background:rgba(255,255,255,0.86);
+<div style="display:flex; padding:10px 8px calc(8px + env(safe-area-inset-bottom, 0px)); background:rgba(255,255,255,0.86);
   backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border-top:1px solid var(--line);">
   {#each items as [k, href]}
     {@const on = active === k}
