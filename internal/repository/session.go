@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/elitecoach/backend/internal/model"
@@ -273,23 +272,14 @@ func (r *SessionRepo) GetProgressMetrics(ctx context.Context, userID string, wee
 		if err := prRows.Scan(&name, &weight, &reps, &when); err != nil {
 			return nil, err
 		}
-		diff := time.Since(when)
-		var whenStr string
-		switch {
-		case diff < 24*time.Hour:
-			whenStr = "Today"
-		case diff < 48*time.Hour:
-			whenStr = "Yesterday"
-		case diff < 7*24*time.Hour:
-			whenStr = fmt.Sprintf("%dd ago", int(diff.Hours()/24))
-		default:
-			whenStr = "Last week"
-		}
 		m.PRs = append(m.PRs, model.PR{
-			Lift:  name,
-			Value: fmt.Sprintf("%.1f kg × %d", weight, reps),
-			When:  whenStr,
-			Fresh: diff < 48*time.Hour,
+			Lift:       name,
+			Weight:     weight,
+			Reps:       reps,
+			AchievedAt: when,
+			// "Recente" = entro due giorni. Resta una soglia del server perché
+			// è la stessa che decide cosa contare come PR nuovo su Home.
+			Fresh: time.Since(when) < 48*time.Hour,
 		})
 	}
 	prRows.Close()

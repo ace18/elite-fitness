@@ -68,11 +68,22 @@ type SetLog struct {
 	IsPR         bool     `json:"isPr"`
 }
 
+// PR — un record personale.
+//
+// Solo dati, nessuna frase già composta. Prima questa struct portava
+// `value: "100.0 kg × 5"` e `when: "Today"`: entrambe stringhe scritte in
+// inglese dal server e mostrate così com'erano a un'app che parte in italiano.
+// È lo stesso principio degli errori (vedi handler/helpers.go) — il backend non
+// sa in che lingua sta guardando l'utente, quindi non scrive testo per lui. E
+// non sa nemmeno come si scrive un numero: 102,5 in italiano, 102.5 in inglese.
 type PR struct {
-	Lift  string `json:"lift"`
-	Value string `json:"value"`
-	When  string `json:"when"`
-	Fresh bool   `json:"fresh"`
+	Lift       string    `json:"lift"`
+	Weight     float64   `json:"weight"`
+	Reps       int       `json:"reps"`
+	AchievedAt time.Time `json:"achievedAt"`
+	// Fresh resta qui: è un fatto (il PR è recente), non una frase. Home la usa
+	// per contare i PR nuovi della settimana.
+	Fresh bool `json:"fresh"`
 }
 
 type BodyWeightEntry struct {

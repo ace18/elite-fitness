@@ -5,6 +5,7 @@
   import { API } from '$lib/api.js';
   import { progress, reloadProgress } from '$lib/stores.js';
   import { t } from '$lib/i18n/index.js';
+  import { relativeDay, weightReps } from '$lib/format.js';
   import Screen from '$lib/components/ui/Screen.svelte';
   import Loading from '$lib/components/ui/Loading.svelte';
   import TabBar from '$lib/components/ui/TabBar.svelte';
@@ -94,8 +95,8 @@
           {#each prs as r, i}
             <div class="row" style="padding:13px 0; border-bottom:{i < prs.length - 1 ? '1px solid var(--line)' : 'none'};">
               <span style="font-size:18px; color:{r.fresh ? 'var(--amber)' : 'var(--ink4)'};">★</span>
-              <div style="flex:1;"><div class="t-h2" style="font-size:15px;">{r.lift}</div><div class="t-sub" style="font-size:12.5px;">{r.when}</div></div>
-              <span class="t-mono" style="font-size:15px; font-weight:800;">{r.value}</span>
+              <div style="flex:1;"><div class="t-h2" style="font-size:15px;">{r.lift}</div><div class="t-sub" style="font-size:12.5px;">{$relativeDay(r.achievedAt)}</div></div>
+              <span class="t-mono" style="font-size:15px; font-weight:800;">{$weightReps(r.weight, r.reps)}</span>
             </div>
           {/each}
         </div>
