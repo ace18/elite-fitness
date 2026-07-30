@@ -68,6 +68,76 @@ func TestProgressMetricsNeverSerializesNullArrays(t *testing.T) {
 	}
 }
 
+// La lista "Recenti" della Home. Il volume si ricalcola dalle serie, non si
+// legge da session_logs.total_volume: quel campo lo manda il client ed è
+// nullable, quindi una sessione arrivata dalla coda offline potrebbe averlo
+// vuoto e la Home mostrerebbe 0 kg per un allenamento vero.
+func TestProgressMetricsRecentSessions(t *testing.T) {
+	pool := testPool(t)
+	sessions := repository.NewSessionRepo(pool)
+	ctx := context.Background()
+
+	userID := makeUser(t, pool, "recent-"+time.Now().Format("150405.000000")+"@example.com")
+	exID := exerciseID(t, pool)
+
+	// Tre sessioni in giorni diversi, inserite fuori ordine per verificare che
+	// sia la query a ordinarle.
+	type seed struct {
+		name    string
+		daysAgo int
+		weight  float64
+		reps    int
+		sets    int
+	}
+	for _, s := range []seed{
+		{"Media", 3, 50, 10, 2},   // 1000
+		{"Recente", 1, 100, 5, 2}, // 1000
+		{"Vecchia", 10, 20, 5, 1}, // 100
+	} {
+		var sessionID string
+		if err := pool.QueryRow(ctx,
+			`INSERT INTO session_logs (user_id, name, completed_at, total_volume)
+			 VALUES ($1,$2,$3,NULL) RETURNING id`,
+			userID, s.name, time.Now().AddDate(0, 0, -s.daysAgo)).Scan(&sessionID); err != nil {
+			t.Fatalf("sessione %s: %v", s.name, err)
+		}
+		for i := 0; i < s.sets; i++ {
+			if _, err := pool.Exec(ctx,
+				`INSERT INTO set_logs (session_id, exercise_id, exercise_name, set_number, weight, reps)
+				 VALUES ($1,$2,'X',$3,$4,$5)`,
+				sessionID, exID, i+1, s.weight, s.reps); err != nil {
+				t.Fatalf("serie: %v", err)
+			}
+		}
+	}
+
+	m, err := sessions.GetProgressMetrics(ctx, userID, 3)
+	if err != nil {
+		t.Fatalf("GetProgressMetrics: %v", err)
+	}
+
+	if len(m.Recent) != 3 {
+		t.Fatalf("sessioni recenti = %d, attese 3", len(m.Recent))
+	}
+	// Dalla più recente alla più vecchia.
+	want := []string{"Recente", "Media", "Vecchia"}
+	for i, n := range want {
+		if m.Recent[i].Name != n {
+			t.Errorf("posizione %d = %q, attesa %q — l'ordine non è dal più recente", i, m.Recent[i].Name, n)
+		}
+	}
+	// total_volume era NULL su tutte: se il volume arrivasse da lì sarebbe 0.
+	if m.Recent[0].Volume != 1000 {
+		t.Errorf("volume = %v, atteso 1000 — non è ricalcolato dalle serie", m.Recent[0].Volume)
+	}
+	if m.Recent[2].Volume != 100 {
+		t.Errorf("volume della più vecchia = %v, atteso 100", m.Recent[2].Volume)
+	}
+	if m.Recent[0].CompletedAt.IsZero() {
+		t.Error("completedAt vuoto: il client non può formattare la data relativa")
+	}
+}
+
 // Stessa classe di bug sul percorso dell'allenamento: TodayWorkout.Exercises non
 // ha omitempty, quindi una slice nil arriva al client come `exercises: null` e
 // train/+page.svelte fa .reduce() su quello.

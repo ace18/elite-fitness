@@ -99,6 +99,20 @@ type ProgressMetrics struct {
 	Est1RM       Est1RMStats     `json:"est1RM"`
 	Volume       VolumeStats     `json:"volume"`
 	PRs          []PR            `json:"prs"`
+	// Recent — gli ultimi allenamenti, per la lista "Recenti" della Home. Sta
+	// qui e non su un endpoint suo perché la Home carica già /api/progress:
+	// aggiungerci queste righe non costa una richiesta in più, e il service
+	// worker continua a mettere in cache un payload solo.
+	Recent []RecentSession `json:"recent"`
+}
+
+// RecentSession — una riga della lista "Recenti". Come per PR: solo dati, la
+// data relativa e il volume li formatta il client nella sua lingua.
+type RecentSession struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	CompletedAt time.Time `json:"completedAt"`
+	Volume      float64   `json:"volume"`
 }
 
 type BodyWeightStats struct {

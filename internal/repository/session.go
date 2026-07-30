@@ -132,6 +132,7 @@ func (r *SessionRepo) GetProgressMetrics(ctx context.Context, userID string, wee
 	m := &model.ProgressMetrics{
 		WeekGoal:   weekGoal,
 		PRs:        []model.PR{},
+		Recent:     []model.RecentSession{},
 		BodyWeight: model.BodyWeightStats{Series: []float64{}},
 	}
 
@@ -283,6 +284,33 @@ func (r *SessionRepo) GetProgressMetrics(ctx context.Context, userID string, wee
 		})
 	}
 	prRows.Close()
+
+	// Recenti — gli ultimi allenamenti con il loro volume.
+	//
+	// Il volume si ricalcola dalle serie invece di leggere session_logs.total_volume:
+	// quella colonna la manda il client, è nullable, e per una sessione arrivata
+	// dalla coda offline potrebbe non esserci. Le righe di set_logs sono il dato
+	// vero, ed è già così che si calcolano volume settimanale e massimale.
+	recentRows, err := r.db.Query(ctx,
+		`SELECT s.id, s.name, s.completed_at, COALESCE(SUM(sl.weight * sl.reps), 0)
+		 FROM session_logs s
+		 LEFT JOIN set_logs sl ON sl.session_id = s.id
+		 WHERE s.user_id = $1
+		 GROUP BY s.id, s.name, s.completed_at
+		 ORDER BY s.completed_at DESC
+		 LIMIT 5`,
+		userID)
+	if err != nil {
+		return nil, err
+	}
+	defer recentRows.Close()
+	for recentRows.Next() {
+		var rs model.RecentSession
+		if err := recentRows.Scan(&rs.ID, &rs.Name, &rs.CompletedAt, &rs.Volume); err != nil {
+			return nil, err
+		}
+		m.Recent = append(m.Recent, rs)
+	}
 
 	return m, nil
 }

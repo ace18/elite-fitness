@@ -5,6 +5,7 @@
   import { API } from '$lib/api.js';
   import { workout, progress, reloadAll } from '$lib/stores.js';
   import { t } from '$lib/i18n/index.js';
+  import { relativeDay, num } from '$lib/format.js';
   import Screen from '$lib/components/ui/Screen.svelte';
   import Loading from '$lib/components/ui/Loading.svelte';
   import TabBar from '$lib/components/ui/TabBar.svelte';
@@ -42,11 +43,10 @@
   let prs = $derived(p?.prs ?? []);
   let exs = $derived(w?.exercises ?? []);
   let wkPct = $derived(p ? p.weekSessions / p.weekGoal : 0);
-
-  const recent = [
-    ['Pull Day B', '2 days ago', '14,120 kg'],
-    ['Leg Day', '4 days ago', '19,450 kg']
-  ];
+  // Ultimi allenamenti dal server. Erano due righe finte scritte a mano
+  // ("Pull Day B · 2 days ago · 14,120 kg"): sempre le stesse per chiunque, in
+  // inglese, e mostrate anche a chi non si era mai allenato.
+  let recent = $derived(p?.recent ?? []);
 </script>
 
 {#if w === undefined || p === undefined}
@@ -132,20 +132,25 @@
       </div>
 
       <!-- recent -->
-      <div>
-        <div class="t-label" style="margin-bottom:8px; padding-left:2px;">{$t('home.recent')}</div>
-        <div class="card" style="padding:4px 16px;">
-          {#each recent as r, i}
-            <div class="row" style="padding:13px 0; border-bottom:{i < recent.length - 1 ? '1px solid var(--line)' : 'none'};">
-              <div style="width:36px; height:36px; border-radius:11px; background:var(--brand-tint); display:flex; align-items:center; justify-content:center;">
-                <span style="color:var(--brand); font-weight:800; font-size:15px;">✓</span>
+      {#if recent.length > 0}
+        <div>
+          <div class="t-label" style="margin-bottom:8px; padding-left:2px;">{$t('home.recent')}</div>
+          <div class="card" style="padding:4px 16px;">
+            {#each recent as r, i}
+              <div class="row" style="padding:13px 0; border-bottom:{i < recent.length - 1 ? '1px solid var(--line)' : 'none'};">
+                <div style="width:36px; height:36px; border-radius:11px; background:var(--brand-tint); display:flex; align-items:center; justify-content:center;">
+                  <span style="color:var(--brand); font-weight:800; font-size:15px;">✓</span>
+                </div>
+                <div style="flex:1;">
+                  <div class="t-h2" style="font-size:15px;">{r.name}</div>
+                  <div class="t-sub" style="font-size:12.5px;">{$relativeDay(r.completedAt)}</div>
+                </div>
+                <span class="t-mono t-sub" style="font-size:13px; font-weight:700;">{$num(r.volume)} {$t('common.kg')}</span>
               </div>
-              <div style="flex:1;"><div class="t-h2" style="font-size:15px;">{r[0]}</div><div class="t-sub" style="font-size:12.5px;">{r[1]}</div></div>
-              <span class="t-mono t-sub" style="font-size:13px; font-weight:700;">{r[2]}</span>
-            </div>
-          {/each}
+            {/each}
+          </div>
         </div>
-      </div>
+      {/if}
     </div>
   </Screen>
 {/if}
