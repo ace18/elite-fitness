@@ -1,0 +1,91 @@
+# Stack locale: Postgres con dati persistenti + l'immagine dell'app.
+#
+#   docker compose up -d --build      → http://localhost:8080
+#   docker compose logs -f app
+#   docker compose down               # ferma tutto, i dati restano nel volume
+#   docker compose down -v            # cancella anche i dati
+#
+# NON è il file di deploy. Le credenziali qui dentro sono fisse e in chiaro
+# perché servono a far girare la cosa in locale senza configurare niente; in
+# produzione il deploy parte dal Dockerfile e le variabili le inietta Coolify.
+#
+# Nota su come Compose legge il file `.env` della cartella: lo usa per
+# sostituire i ${...} QUI DENTRO, non lo passa ai container. Quindi le chiavi
+# vere (Anthropic, Resend) vengono raccolte da lì se ci sono, mentre
+# DATABASE_URL è scritto a mano: quello del `.env` punta a localhost:5432, che
+# dentro un container è il container stesso.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: elite
+      POSTGRES_PASSWORD: elite
+      POSTGRES_DB: elite
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # 5433 sull'host per non litigare con un Postgres locale. L'app non usa
+      # questa porta (si parla con `db` sulla rete di Compose): serve solo per
+      # collegarsi con psql o un client grafico.
+      - '5433:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U elite -d elite']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        # Senza questo l'app parte prima che Postgres accetti connessioni e
+        # muore sulle migrazioni all'avvio.
+        condition: service_healthy
+    ports:
+      - '8080:8080'
+    environment:
+      # Host `db`, non localhost: è il nome del servizio sulla rete di Compose.
+      DATABASE_URL: postgres://elite:elite@db:5432/elite?sslmode=disable
+
+      # In development l'endpoint magic-link restituisce un devToken, così si
+      # entra senza mandare email. Con APP_ENV=production servono per forza
+      # JWT_SECRET e RESEND_API_KEY, e il devToken non c'è più.
+      APP_ENV: ${APP_ENV:-development}
+      JWT_SECRET: ${JWT_SECRET:-local-dev-secret-at-least-32-characters}
+
+      # Una sola origine: l'app serve anche la SPA, quindi frontend e API
+      # stanno sullo stesso host. STATIC_DIR lo imposta già l'immagine.
+      FRONTEND_URL: http://localhost:8080
+      API_URL: http://localhost:8080
+
+      # La generazione della scheda con l'AI non ha un ripiego: senza chiave
+      # fallisce. Se è nel `.env` viene usata, altrimenti resta vuota.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+
+      # RESEND_API_KEY volutamente NON passata.
+      #
+      # Con un mailer configurato l'endpoint magic-link prova a mandare l'email
+      # davvero, e se il servizio la rifiuta risponde 500 senza il devToken: il
+      # login in locale diventa impossibile. Resend rifiuta gli indirizzi di
+      # test tipo @example.com, e su un dominio non verificato consegna solo al
+      # titolare dell'account. Senza chiave, in development, il token viene
+      # restituito direttamente dalla risposta e non parte nessuna richiesta.
+      #
+      # Per provare la consegna vera: docker compose run con la chiave passata
+      # a mano e un indirizzo che Resend accetta (il proprio, o
+      # delivered@resend.dev).
+      #   RESEND_API_KEY: ${RESEND_API_KEY:-}
+      #   EMAIL_FROM: ${EMAIL_FROM:-}
+
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      # Apple non è nell'elenco di proposito: rifiuta i redirect_uri su http e
+      # localhost, quindi non è testabile qui — serve un tunnel o l'host vero.
+
+      # TRUST_PROXY_HEADERS resta fuori: in locale non c'è Cloudflare davanti,
+      # e attivarlo farebbe fidare il rate limiter di un CF-Connecting-IP che
+      # chiunque può scrivere.
+
+volumes:
+  pgdata:

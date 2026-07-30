@@ -26,12 +26,26 @@ web/                 # SvelteKit SPA (its own package.json)
   src/lib/api.js     # HTTP client for the API above
   src/routes/        # one route per screen
 Dockerfile           # multi-stage: builds both halves into one image
+docker-compose.yml   # local stack: app + persistent Postgres
 ```
 
 ## Run it
 
-Two processes in development — vite serves the frontend on its own port and talks
-to the API cross-origin.
+Fastest path — the whole stack in Docker, exactly as it ships:
+
+```bash
+docker compose up -d --build      # → http://localhost:8080
+docker compose logs -f app
+docker compose down               # stops; data stays in the pgdata volume
+```
+
+Postgres data persists in a named volume; `docker compose down -v` wipes it.
+`RESEND_API_KEY` is deliberately not passed, so the magic-link endpoint returns
+a `devToken` and you can log in without sending mail — see the comments in
+`docker-compose.yml`.
+
+For frontend work you want vite's hot reload instead, which means two processes
+and a cross-origin API:
 
 ```bash
 # 1. Postgres (throwaway)
