@@ -3,7 +3,8 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { API } from '$lib/api.js';
-  import { program, workout, reloadAll } from '$lib/stores.js';
+  import { program, workout, reloadAll, summary } from '$lib/stores.js';
+  import { draftInfo, clearDraft } from '$lib/session-draft.js';
   import Screen from '$lib/components/ui/Screen.svelte';
   import { t } from '$lib/i18n/index.js';
   import Loading from '$lib/components/ui/Loading.svelte';
@@ -18,6 +19,20 @@
     }
     reloadAll();
   });
+
+  // Due stati recuperabili da rendere visibili qui, altrimenti restano
+  // invisibili e l'utente crede di aver perso il lavoro:
+  //  - un allenamento sospeso a metà (chiuso con ✕, refresh, app scaricata)
+  //  - un allenamento finito il cui salvataggio è fallito. La ricevuta non è
+  //    raggiungibile dal tab bar, quindi senza questo non ci sarebbe modo di
+  //    riprovare.
+  let draft = $state(draftInfo());
+  let pendingSave = $derived($summary != null);
+
+  function discardDraft() {
+    clearDraft();
+    draft = null;
+  }
 
   let prog = $derived($program);
   let w = $derived($workout);
@@ -132,7 +147,25 @@
                 </span>
               </div>
             {/if}
-            <Btn block lg onclick={() => goto('/session')}>{$t('train.startSession')}</Btn>
+            {#if pendingSave}
+              <div class="row" style="gap:8px; padding:10px 12px; background:var(--up-tint); border-radius:12px; margin-bottom:12px;">
+                <span style="font-size:15px;">↻</span>
+                <span class="t-sub" style="font-size:12.5px; font-weight:700; color:#0a7a44; flex:1;">{$t('train.pendingSave')}</span>
+              </div>
+              <Btn block lg onclick={() => goto('/receipt')}>{$t('train.retrySave')}</Btn>
+            {:else if draft}
+              <div class="row" style="gap:8px; padding:10px 12px; background:var(--brand-tint); border-radius:12px; margin-bottom:12px;">
+                <span style="font-size:15px;">⏸</span>
+                <span class="t-sub" style="font-size:12.5px; font-weight:700; color:var(--brand-ink); flex:1;">{$t('train.draftPending', { n: draft.doneSets })}</span>
+              </div>
+              <Btn block lg onclick={() => goto('/session')}>{$t('train.resumeSession')}</Btn>
+              <button
+                class="chip"
+                style="margin:10px auto 0; display:block; color:var(--ink3);"
+                onclick={discardDraft}>{$t('train.discardDraft')}</button>
+            {:else}
+              <Btn block lg onclick={() => goto('/session')}>{$t('train.startSession')}</Btn>
+            {/if}
           </div>
         </div>
         {/if}

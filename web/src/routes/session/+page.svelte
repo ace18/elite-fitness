@@ -5,6 +5,7 @@
   import { goto } from '$app/navigation';
   import { API } from '$lib/api.js';
   import { workout, program, summary } from '$lib/stores.js';
+  import { saveDraft, loadDraft, clearDraft } from '$lib/session-draft.js';
   import Screen from '$lib/components/ui/Screen.svelte';
   import Btn from '$lib/components/ui/Btn.svelte';
   import Ring from '$lib/components/ui/Ring.svelte';
@@ -13,22 +14,33 @@
   import RPEScale, { rpeColor } from '$lib/components/ui/RPEScale.svelte';
   import Toast from '$lib/components/ui/Toast.svelte';
 
+  // Un allenamento sospeso (refresh, app chiusa, iOS che scarica la PWA dalla
+  // memoria) viene ripreso da qui. Il draft porta il suo snapshot del workout,
+  // così il ripristino funziona anche quando gli store sono vuoti e la rete non
+  // c'è — che è il caso in cui serve davvero.
+  const draft = loadDraft();
+
   // Snapshot at mount. Null when the store hasn't loaded (or the user has no
   // program) — onMount redirects and the template stays unrendered.
-  const w = $workout;
+  const w = draft?.workout ?? $workout;
   const prog = $program;
   const exs = w?.exercises ?? [];
   const totalSets = exs.reduce((a, e) => a + e.sets, 0);
 
-  let exIndex = $state(0);
-  let setIndex = $state(0);
+  // Il draft vale solo per lo stesso allenamento: se il programma è cambiato o
+  // è un altro giorno, riprendere i set dentro una scheda diversa produrrebbe
+  // dati attribuiti all'esercizio sbagliato.
+  const resuming = !!draft && draft.workout?.id === w?.id && exs.length > 0;
+
+  let exIndex = $state(resuming ? (draft.exIndex ?? 0) : 0);
+  let setIndex = $state(resuming ? (draft.setIndex ?? 0) : 0);
   let ex = $derived(exs[exIndex]);
 
-  let weight = $state(exs[0]?.suggested ?? 0);
-  let reps = $state(exs[0]?.targetReps ?? 8);
-  let rpe = $state(null);
-  let logged = $state(exs.map(() => []));
-  let prs = $state([]);
+  let weight = $state(resuming ? draft.weight : (exs[0]?.suggested ?? 0));
+  let reps = $state(resuming ? draft.reps : (exs[0]?.targetReps ?? 8));
+  let rpe = $state(resuming ? (draft.rpe ?? null) : null);
+  let logged = $state(resuming ? draft.logged : exs.map(() => []));
+  let prs = $state(resuming ? (draft.prs ?? []) : []);
 
   let resting = $state(false);
   let rest = $state(0);
@@ -36,9 +48,28 @@
   let toast = $state(null);
   let toastT;
 
-  let startTime = Date.now();
+  // Ripreso dal draft, così la durata dell'allenamento resta quella vera anche
+  // se l'app è stata chiusa in mezzo.
+  let startTime = resuming ? (draft.startTime ?? Date.now()) : Date.now();
   let elapsed = $state(0);
   let elapsedT, restT;
+
+  // Lo stato completo del logger, nella forma in cui viene persistito.
+  function snapshot() {
+    return { workout: w, programId: prog?.id ?? null, exIndex, setIndex, weight, reps, rpe, logged, prs, startTime };
+  }
+
+  // Si scrive quando un set è registrato — il dato che costa fatica — e quando
+  // la pagina passa in background, che è il momento prima che iOS la scarichi:
+  // così anche peso e ripetizioni digitati e non ancora registrati sopravvivono.
+  // Non a ogni tocco dello stepper: sono write sincrone, e ribattere un valore
+  // costa un tap.
+  function persist() {
+    if (exs.length) saveDraft(snapshot());
+  }
+  function onHide() {
+    if (document.visibilityState === 'hidden') persist();
+  }
 
   onMount(() => {
     if (!API.isAuthed()) {
@@ -50,12 +81,23 @@
       goto('/home', { replaceState: true });
       return;
     }
+    // Un draft che non combacia col workout di oggi non è recuperabile: meglio
+    // toglierlo di mezzo che lasciare "riprendi" a puntare nel vuoto.
+    if (draft && !resuming) clearDraft();
+    if (resuming) {
+      persist(); // rinfresca savedAt: la sessione è di nuovo attiva
+      flashToast($t('session.resumed'));
+    }
     elapsedT = setInterval(() => (elapsed = Math.floor((Date.now() - startTime) / 1000)), 1000);
+    addEventListener('visibilitychange', onHide);
+    addEventListener('pagehide', persist);
   });
   onDestroy(() => {
     clearInterval(elapsedT);
     clearTimeout(restT);
     clearTimeout(toastT);
+    removeEventListener('visibilitychange', onHide);
+    removeEventListener('pagehide', persist);
   });
 
   // rest countdown
@@ -152,7 +194,11 @@
           best: Math.max(...nl[i].map((s) => s.w), 0)
         }))
       };
+      // Il riassunto prende il posto del draft: da qui in poi è lui l'unica
+      // copia dei dati, e viene persistito da summary.set() (vedi stores.js)
+      // finché il server non conferma il salvataggio.
       summary.set(s);
+      clearDraft();
       goto('/receipt');
       return;
     }
@@ -165,6 +211,9 @@
       startRest(ex.rest);
       advanceTo(exIndex + 1, 0);
     }
+    // Dopo advanceTo, così indici e peso suggerito salvati sono già quelli del
+    // set successivo: riprendendo si riparte da dove si era arrivati.
+    persist();
   }
 
   let restPct = $derived(restTotal ? rest / restTotal : 0);

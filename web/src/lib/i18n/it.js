@@ -125,6 +125,11 @@ export const it = {
     bumpedOne: '{n} esercizio con carico aumentato rispetto alla scorsa settimana — sovraccarico progressivo',
     bumpedMany: '{n} esercizi con carico aumentato rispetto alla scorsa settimana — sovraccarico progressivo',
     startSession: 'Inizia l’allenamento →',
+    resumeSession: 'Riprendi l’allenamento →',
+    draftPending: 'Allenamento in corso · {n} set registrati',
+    discardDraft: 'Elimina l’allenamento in corso',
+    pendingSave: 'Allenamento non ancora salvato — è al sicuro sul telefono',
+    retrySave: 'Riprova a salvare →',
     thisWeek: 'Questa settimana',
     yourPlan: 'La tua scheda',
     heading: 'Allenamento',
@@ -216,10 +221,12 @@ export const it = {
     rest: 'RECUPERO',
     upNext: 'Poi tocca a · ',
     upNextSet: 'Set {i} — consigliato {w} kg × {r}',
-    skipRest: 'Salta il recupero →'
+    skipRest: 'Salta il recupero →',
+    resumed: '⏸ Allenamento ripreso'
   },
 
   receipt: {
+    keptLocally: 'L’allenamento è salvato sul telefono: puoi riprovare quando torna la rete.',
     done: '{name} — fatto!',
     summary: '{min} min · {exercises} esercizi · {sets} set',
     totalVolume: 'VOLUME TOTALE',

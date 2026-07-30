@@ -121,6 +121,11 @@ export const en = {
     bumpedOne: '{n} lift bumped up from last week — progressive overload',
     bumpedMany: '{n} lifts bumped up from last week — progressive overload',
     startSession: 'Start session →',
+    resumeSession: 'Resume session →',
+    draftPending: 'Session in progress · {n} sets logged',
+    discardDraft: 'Discard session in progress',
+    pendingSave: 'Session not saved yet — it’s safe on your phone',
+    retrySave: 'Retry saving →',
     thisWeek: 'This week',
     yourPlan: 'Your plan',
     heading: 'Training',
@@ -213,10 +218,12 @@ export const en = {
     rest: 'REST',
     upNext: 'Up next · ',
     upNextSet: 'Set {i} — suggested {w} kg × {r}',
-    skipRest: 'Skip rest →'
+    skipRest: 'Skip rest →',
+    resumed: '⏸ Session resumed'
   },
 
   receipt: {
+    keptLocally: 'Your session is saved on this phone — retry when you’re back online.',
     done: '{name} — done!',
     summary: '{min} min · {exercises} exercises · {sets} sets',
     totalVolume: 'TOTAL VOLUME',

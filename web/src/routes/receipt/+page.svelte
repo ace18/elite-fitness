@@ -47,6 +47,10 @@
     <Btn block lg onclick={save} disabled={saving}>{saving ? $t('receipt.saving') : $t('receipt.save')}</Btn>
     {#if error}
       <p class="t-sub" style="font-size:12.5px; color:var(--down, #d1495b); text-align:center; margin:10px 0 0;">{error}</p>
+      <!-- Il riassunto è persistito in locale: senza dirlo, un salvataggio
+           fallito sembra un allenamento perso e l'utente riprova a vuoto o
+           chiude l'app rassegnato. -->
+      <p class="t-sub" style="font-size:12px; text-align:center; margin:6px 0 0;">{$t('receipt.keptLocally')}</p>
     {/if}
   {/snippet}
   <div style="padding:30px 20px 10px;">

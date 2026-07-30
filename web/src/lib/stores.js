@@ -8,6 +8,7 @@
 
 import { writable } from 'svelte/store';
 import { API, ApiError } from './api.js';
+import { saveSummary, loadSummary, clearSummary } from './session-draft.js';
 
 // `undefined` = not loaded yet (show a spinner).
 // `null`      = loaded, but there's nothing (rest day / no program yet).
@@ -19,8 +20,22 @@ export const progress = writable(undefined);
 // Last load error, so screens can tell "still loading" from "backend is down".
 export const loadError = writable(null);
 
-// summary produced by a finished session and consumed by /receipt
-export const summary = writable(null);
+// Riassunto prodotto da una sessione finita e consumato da /receipt.
+//
+// Rispecchiato in localStorage perché fra la fine dell'allenamento e il POST
+// riuscito è l'unica copia dei dati: senza, un salvataggio fallito (palestra
+// senza campo) seguito dalla chiusura dell'app perdeva l'allenamento intero.
+// Si legge subito all'avvio, così anche un refresh sulla ricevuta la ritrova.
+const summaryStore = writable(loadSummary());
+export const summary = {
+  subscribe: summaryStore.subscribe,
+  set(value) {
+    // null = salvato e confermato: si può buttare la copia locale.
+    if (value == null) clearSummary();
+    else saveSummary(value);
+    summaryStore.set(value);
+  }
+};
 
 export async function reloadAll() {
   try {
