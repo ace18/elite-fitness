@@ -1,0 +1,76 @@
+name: Build & Push Docker Image
+
+# Costruisce l'immagine su GitHub e la pubblica su GHCR, invece di farla
+# compilare a Coolify sul server. Il build fa `pnpm install` + `vite build` e
+# poi compila il binario Go: sulla macchina che ospita anche l'app quel picco
+# di CPU e memoria se lo prende il server a ogni deploy.
+#
+# In più i tag danno un rollback vero: si ripunta Coolify a `sha-<commit>` e si
+# torna indietro in pochi secondi, senza ricompilare niente.
+
+on:
+  push:
+    branches:
+      - master # ogni push su master → tag "master" e "sha-<commit>"
+    tags:
+      - 'v*.*.*' # tag di versione → "1.2.3" e "1.2"
+  workflow_dispatch: # avvio manuale dalla UI di GitHub
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }} # ace18/elite-fitness
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write # serve per pubblicare su GHCR
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # Il GITHUB_TOKEN è generato dalla action: nessun segreto da configurare.
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-
+
+      # NIENTE `target:` qui, di proposito.
+      #
+      # Il Dockerfile ha uno stage che si chiama `web`, ma è quello che compila
+      # il frontend: contiene node e la cartella build/, non il binario Go.
+      # Puntarci `target: web` — come fa il workflow di glorfindel, dove `web`
+      # è davvero l'immagine finale — pubblicherebbe un'immagine che si carica
+      # senza errori e poi non parte. Senza `target` viene costruito l'ultimo
+      # stage, che è quello giusto.
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # I runner di GitHub sono amd64, quindi l'immagine esce amd64: giusto
+          # per un VPS normale. Se il server fosse ARM servirebbe
+          # `platforms: linux/arm64` più QEMU, che rende il build molto più lento.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
