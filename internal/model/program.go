@@ -58,13 +58,24 @@ func (p *UserProgram) WeekAt(now time.Time) int {
 	return week
 }
 
+// WeekStart è l'istante da cui parte la settimana `week` del programma
+// (1 = la prima). Le settimane sono blocchi di sette giorni dall'inizio, non
+// settimane di calendario: chi comincia di giovedì ha la sua settimana 1 che
+// finisce il giovedì dopo.
+func (p *UserProgram) WeekStart(week int) time.Time {
+	if week < 1 {
+		week = 1
+	}
+	return p.StartedAt.Add(time.Duration(week-1) * 7 * 24 * time.Hour)
+}
+
 // FinalWeekStart è l'istante da cui parte l'ultima settimana del programma.
 func (p *UserProgram) FinalWeekStart() time.Time {
 	total := p.TotalWeeks
 	if total < 1 {
 		total = 1
 	}
-	return p.StartedAt.Add(time.Duration(total-1) * 7 * 24 * time.Hour)
+	return p.WeekStart(total)
 }
 
 // IsComplete dice se il programma è arrivato in fondo: si è nell'ultima

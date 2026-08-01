@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"time"
 
 	"github.com/elitecoach/backend/internal/model"
 	"github.com/elitecoach/backend/internal/repository"
@@ -10,10 +9,11 @@ import (
 
 type WorkoutService struct {
 	programs *repository.ProgramRepo
+	sessions *repository.SessionRepo
 }
 
-func NewWorkoutService(programs *repository.ProgramRepo) *WorkoutService {
-	return &WorkoutService{programs: programs}
+func NewWorkoutService(programs *repository.ProgramRepo, sessions *repository.SessionRepo) *WorkoutService {
+	return &WorkoutService{programs: programs, sessions: sessions}
 }
 
 func (s *WorkoutService) BuildTodayWorkout(ctx context.Context, userID string) (*model.TodayWorkout, error) {
@@ -33,19 +33,29 @@ func (s *WorkoutService) BuildTodayWorkout(ctx context.Context, userID string) (
 		return nil, nil
 	}
 
-	// find today's workout by day of week (0=Mon)
-	todayDow := int(time.Now().Weekday()+6) % 7
-	var target *model.ProgramWorkout
-	for i := range workouts {
-		if workouts[i].DayOfWeek == todayDow {
-			target = &workouts[i]
-			break
-		}
+	// L'allenamento da proporre è il prossimo NON ancora fatto in questa
+	// settimana di programma, in ordine di scheda.
+	//
+	// Prima si sceglieva per giorno della settimana, con `workouts[0]` come
+	// ripiego quando nessun giorno combaciava. Due conseguenze: di sabato — che
+	// nel 5×5 è riposo — proponeva comunque il primo allenamento, e soprattutto
+	// registrarne uno non cambiava niente, perché la scelta non guardava lo
+	// storico. Chi aveva appena finito Strength A se lo ritrovava proposto di
+	// nuovo.
+	//
+	// Contare le sessioni invece del giorno regge anche i ritardi: saltato il
+	// lunedì, martedì si riparte comunque da dove si era rimasti, invece di
+	// perdere l'allenamento perché il calendario è andato avanti.
+	done, err := s.sessions.CountSessionsForProgramSince(
+		ctx, program.ID, program.WeekStart(program.CurrentWeek))
+	if err != nil {
+		return nil, err
 	}
-	// fallback to next in order
-	if target == nil {
-		target = &workouts[0]
+	if done >= len(workouts) {
+		// Quota della settimana esaurita: da qui in poi è riposo.
+		return nil, nil
 	}
+	target := &workouts[done]
 
 	exercises, err := s.programs.GetExercisesForWorkout(ctx, target.ID)
 	if err != nil {

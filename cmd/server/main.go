@@ -95,7 +95,7 @@ func main() {
 	)
 	go pruner.Run(ctx)
 
-	workoutSvc := service.NewWorkoutService(programRepo)
+	workoutSvc := service.NewWorkoutService(programRepo, sessionRepo)
 	aiSvc := service.NewAIService(cfg.AnthropicKey, programRepo, pool)
 	planJobs := service.NewPlanJobStore()
 
