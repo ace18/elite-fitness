@@ -44,30 +44,70 @@ Postgres data persists in a named volume; `docker compose down -v` wipes it.
 a `devToken` and you can log in without sending mail — see the comments in
 `docker-compose.yml`.
 
-For frontend work you want vite's hot reload instead, which means two processes
-and a cross-origin API:
+### Without Docker
+
+For frontend work you want vite's hot reload, which means two processes and a
+cross-origin API. Any local Postgres will do — point `DATABASE_URL` at it and
+create an empty database; migrations build the schema on first boot.
 
 ```bash
-# 1. Postgres (throwaway)
-docker run -d --rm --name elite-pg -e POSTGRES_PASSWORD=test -e POSTGRES_DB=elite \
-  -p 55432:5432 postgres:16-alpine
+# once: create an empty database (adjust host/port/user for your Postgres)
+createdb -h 127.0.0.1 -p 5433 -U postgres elite
 
-# 2. API — copy .env.example to .env first
-DATABASE_URL="postgres://postgres:test@localhost:55432/elite?sslmode=disable" \
-APP_ENV=development FRONTEND_URL=http://localhost:5173 go run ./cmd/server
+# terminal 1 — API
+RESEND_API_KEY= \
+DATABASE_URL="postgres://postgres@127.0.0.1:5433/elite?sslmode=disable" \
+APP_ENV=development PORT=8080 FRONTEND_URL=http://localhost:5173 \
+go run ./cmd/server
 
-# 3. Frontend
-cd web && pnpm install && pnpm dev      # http://localhost:5173
+# terminal 2 — frontend
+cd web && pnpm install && pnpm dev      # → http://localhost:5173
 ```
 
-Migrations run automatically on boot. In development the magic-link endpoint
-returns a `devToken` when `RESEND_API_KEY` is unset, so you can log in without
-sending mail.
+`createdb` needs the Postgres client tools on `PATH`, which GUI managers like
+DBngin and Postgres.app don't add — their binaries live inside the app's own
+directory (DBngin: `/Users/Shared/DBngin/postgresql/<version>/bin/`). Use the
+full path, or just create the database from the manager's UI.
+
+**`RESEND_API_KEY=` — with an empty value — is load-bearing, and `env -u` is
+not a substitute.** `godotenv` loads the repo-root `.env` from the working
+directory, so a real Resend key gets picked up; the magic-link endpoint then
+tries to send mail for real, the provider rejects `@example.com` addresses, and
+the request fails with 500 and no `devToken` — leaving no way to log in.
+Setting the variable to empty leaves the key *present* in the environment, which
+is what makes `godotenv` skip it: `Load` only skips keys already set, so
+*unsetting* the variable is precisely what invites the value in from `.env`.
+
+### Single origin (PWA, service worker, offline)
+
+The two-process setup can't exercise the service worker: it only caches
+same-origin requests, and there the API is on another port. To test installing
+the app, offline mode, or the sync queue, serve the built SPA from the API — the
+production topology, minus hot reload.
 
 ```bash
-go test ./...            # backend
+cd web && pnpm build && cd ..
+RESEND_API_KEY= STATIC_DIR=web/build \
+DATABASE_URL="postgres://postgres@127.0.0.1:5433/elite?sslmode=disable" \
+APP_ENV=development PORT=8080 \
+FRONTEND_URL=http://localhost:8080 API_URL=http://localhost:8080 \
+go run ./cmd/server                     # → http://localhost:8080
+```
+
+> `go run` leaves the compiled binary running after you kill the parent, and it
+> keeps holding `:8080` — which makes the *next* start look like it worked when
+> it never bound. If behaviour looks stale: `kill -9 $(lsof -ti :8080)`.
+
+### Tests
+
+```bash
+go test ./...            # backend; repository tests skip without a database
+cd web && pnpm test      # session-draft persistence + i18n parity
 cd web && pnpm build     # SPA bundle
-cd web && pnpm check:i18n
+
+# repository integration tests, against any scratch database
+TEST_DATABASE_URL="postgres://postgres@127.0.0.1:5433/elite?sslmode=disable" \
+  go test ./internal/repository/
 ```
 
 > Mobile-first: the app fills the viewport on a phone and sits in a centred
