@@ -39,6 +39,7 @@ const (
 	ErrPlanGeneration   = "plan_generation_failed"
 	ErrPlanJobNotFound  = "plan_job_not_found"
 	ErrNotFound         = "not_found"
+	ErrUnknownExercise  = "unknown_exercise"
 )
 
 // Testo inglese associato a ogni codice. Resta nella risposta come `error`:
@@ -65,6 +66,7 @@ var errorMessages = map[string]string{
 	ErrPlanGeneration:   "plan generation failed",
 	ErrPlanJobNotFound:  "plan generation not found",
 	ErrNotFound:         "not found",
+	ErrUnknownExercise:  "session references an exercise this server does not know",
 }
 
 func jsonError(w http.ResponseWriter, code string, status int) {

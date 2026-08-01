@@ -27,6 +27,74 @@ func (r *SessionRepo) CountSessionsForProgramSince(ctx context.Context, programI
 	return n, err
 }
 
+// ErrUnknownExercise — una serie fa riferimento a un esercizio che questo
+// database non conosce, né per id né per nome. Non è un errore del server: il
+// client ha mandato qualcosa di irrecuperabile, quindi l'handler risponde 4xx e
+// la coda offline scarta la voce invece di ritentarla per sempre.
+var ErrUnknownExercise = errors.New("unknown exercise")
+
+// resolveWorkoutID protegge dal workoutId scaduto.
+//
+// Gli id vivono nel client: nella bozza dell'allenamento, nel riassunto
+// persistito e nelle voci della coda offline. Ma le righe a cui puntano sono di
+// UN database: cambiare istanza (locale ↔ produzione, o un reset) li rende tutti
+// pendenti, e la FK faceva fallire il salvataggio con un 500 — perdendo
+// l'allenamento per un campo che è solo un collegamento.
+//
+// Il programma il server già se lo risolve da sé senza fidarsi del client
+// (vedi handler/session.go); questo applica la stessa diffidenza al workout.
+func resolveWorkoutID(ctx context.Context, q Querier, id *string) (*string, error) {
+	if id == nil || *id == "" {
+		return nil, nil
+	}
+	var exists bool
+	// Il cast a testo evita che un id malformato faccia esplodere la query con
+	// un errore di sintassi UUID, abortendo la transazione.
+	if err := q.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM program_workouts WHERE id::text = $1)`, *id,
+	).Scan(&exists); err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, nil
+	}
+	return id, nil
+}
+
+// resolveExerciseID traduce l'esercizio di una serie in un id valido QUI.
+//
+// La migrazione di seed genera UUID nuovi a ogni database, quindi lo stesso
+// "Back Squat" ha un id diverso in ogni istanza. Il nome invece è stabile: se
+// l'id non esiste si ripiega su quello, ed è anche più corretto — la serie
+// finisce sull'esercizio giusto, quindi PR e progressione continuano a tornare.
+//
+// Non si creano esercizi nuovi: un id sconosciuto con un nome sconosciuto è un
+// payload rotto, non un esercizio da inventare.
+func resolveExerciseID(ctx context.Context, q Querier, id, name string) (string, error) {
+	if id != "" {
+		var found string
+		err := q.QueryRow(ctx, `SELECT id FROM exercises WHERE id::text = $1`, id).Scan(&found)
+		if err == nil {
+			return found, nil
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return "", err
+		}
+	}
+	if name == "" {
+		return "", ErrUnknownExercise
+	}
+	var byName string
+	err := q.QueryRow(ctx, `SELECT id FROM exercises WHERE name = $1`, name).Scan(&byName)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrUnknownExercise
+	}
+	if err != nil {
+		return "", err
+	}
+	return byName, nil
+}
+
 // SaveSession registra la sessione e dice se l'ha inserita davvero.
 //
 // `inserted == false` significa che il client aveva già mandato questo
@@ -43,6 +111,11 @@ func (r *SessionRepo) SaveSession(ctx context.Context, s *model.SessionLog) (boo
 		return false, err
 	}
 	defer tx.Rollback(ctx)
+
+	// Gli id arrivano dal client e possono venire da un altro database.
+	if s.WorkoutID, err = resolveWorkoutID(ctx, tx, s.WorkoutID); err != nil {
+		return false, err
+	}
 
 	err = tx.QueryRow(ctx,
 		`INSERT INTO session_logs
@@ -72,6 +145,13 @@ func (r *SessionRepo) SaveSession(ctx context.Context, s *model.SessionLog) (boo
 	for i := range s.Sets {
 		set := &s.Sets[i]
 		set.SessionID = s.ID
+		// Stessa storia dell'id del workout: l'id dell'esercizio è di un altro
+		// database. Il nome sopravvive al cambio, quindi si ripiega su quello.
+		resolved, err := resolveExerciseID(ctx, tx, set.ExerciseID, set.ExerciseName)
+		if err != nil {
+			return false, err
+		}
+		set.ExerciseID = resolved
 		// check PR
 		var prevMax float64
 		_ = tx.QueryRow(ctx,

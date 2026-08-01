@@ -7,3 +7,6 @@ node_modules
 .env.*
 !.env.example
 .DS_Store
+
+# backup dei permessi creato da /doctor: locale, non va in repo
+.claude/settings.local.json.doctor-backup

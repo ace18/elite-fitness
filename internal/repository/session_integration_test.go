@@ -2,6 +2,7 @@ package repository_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -206,5 +207,87 @@ func TestSaveSessionStoresClientCompletedAt(t *testing.T) {
 	}
 	if diff := got.UTC().Sub(want); diff > time.Second || diff < -time.Second {
 		t.Errorf("completed_at = %v, atteso %v (scarto %v) — il server lo sta sovrascrivendo", got.UTC(), want, diff)
+	}
+}
+
+// Gli id che il client conserva (bozza, riassunto, coda offline) appartengono a
+// UN database: la migrazione di seed genera UUID nuovi a ogni istanza, quindi
+// lo stesso "Back Squat" ha un id diverso in locale e in produzione. Cambiare
+// database rendeva ogni sessione salvata nel browser impossibile da spedire —
+// la FK faceva fallire l'insert e l'utente vedeva un 500.
+func TestSaveSessionSurvivesIDsFromAnotherDatabase(t *testing.T) {
+	pool := testPool(t)
+	repo := repository.NewSessionRepo(pool)
+	ctx := context.Background()
+
+	userID := makeUser(t, pool, "staleids-"+time.Now().Format("150405.000000")+"@example.com")
+
+	// Il nome dell'esercizio esiste qui, l'id no: è esattamente il payload che
+	// arriva da un browser puntato prima a un altro database.
+	var realName string
+	if err := pool.QueryRow(ctx, `SELECT name FROM exercises LIMIT 1`).Scan(&realName); err != nil {
+		t.Fatalf("catalogo esercizi vuoto: %v", err)
+	}
+	bogus := "00000000-0000-0000-0000-0000000000ff"
+
+	s := &model.SessionLog{
+		UserID:      userID,
+		WorkoutID:   &bogus, // workout di un altro database
+		Name:        "Strength A",
+		CompletedAt: time.Now(),
+		Sets: []model.SetLog{
+			{ExerciseID: bogus, ExerciseName: realName, SetNumber: 1, Weight: 80, Reps: 5},
+		},
+	}
+
+	inserted, err := repo.SaveSession(ctx, s)
+	if err != nil {
+		t.Fatalf("id di un altro database non devono far fallire il salvataggio: %v", err)
+	}
+	if !inserted {
+		t.Fatal("la sessione doveva essere inserita")
+	}
+
+	// Il workout non risolvibile si perde (è solo un collegamento), la sessione no.
+	var workoutID *string
+	if err := pool.QueryRow(ctx, `SELECT workout_id FROM session_logs WHERE id = $1`, s.ID).Scan(&workoutID); err != nil {
+		t.Fatal(err)
+	}
+	if workoutID != nil {
+		t.Errorf("workout_id = %v, atteso NULL: l'id non esiste in questo database", *workoutID)
+	}
+
+	// La serie deve essere finita sull'esercizio GIUSTO di questo database,
+	// altrimenti PR e progressione si calcolerebbero sull'esercizio sbagliato.
+	var mapped string
+	if err := pool.QueryRow(ctx,
+		`SELECT e.name FROM set_logs sl JOIN exercises e ON e.id = sl.exercise_id WHERE sl.session_id = $1`,
+		s.ID).Scan(&mapped); err != nil {
+		t.Fatalf("serie non salvata: %v", err)
+	}
+	if mapped != realName {
+		t.Errorf("serie mappata su %q, atteso %q", mapped, realName)
+	}
+}
+
+// Un esercizio sconosciuto sia per id che per nome non è recuperabile: deve
+// dare un errore riconoscibile, così l'handler risponde 4xx e la coda offline
+// scarta la voce invece di ritentarla finché non scade.
+func TestSaveSessionRejectsTrulyUnknownExercise(t *testing.T) {
+	pool := testPool(t)
+	repo := repository.NewSessionRepo(pool)
+	ctx := context.Background()
+
+	userID := makeUser(t, pool, "noex2-"+time.Now().Format("150405.000000")+"@example.com")
+	s := &model.SessionLog{
+		UserID: userID, Name: "X", CompletedAt: time.Now(),
+		Sets: []model.SetLog{{
+			ExerciseID:   "00000000-0000-0000-0000-0000000000ff",
+			ExerciseName: "Esercizio Che Non Esiste " + time.Now().Format("150405.000000"),
+			SetNumber:    1, Weight: 10, Reps: 5,
+		}},
+	}
+	if _, err := repo.SaveSession(ctx, s); !errors.Is(err, repository.ErrUnknownExercise) {
+		t.Errorf("err = %v, atteso ErrUnknownExercise", err)
 	}
 }

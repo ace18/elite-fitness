@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"time"
@@ -48,6 +49,17 @@ func (h *SessionHandler) SaveSession(w http.ResponseWriter, r *http.Request) {
 
 	inserted, err := h.sessions.SaveSession(r.Context(), &s)
 	if err != nil {
+		// Il motivo va nei log: prima non ci finiva, e un salvataggio fallito
+		// lasciava solo un 500 senza niente da leggere per capire perché.
+		log.Printf("save session for %s: %v", userID, err)
+		if errors.Is(err, repository.ErrUnknownExercise) {
+			// Il payload cita esercizi che questo database non conosce, né per
+			// id né per nome. Rispedirlo identico darà sempre lo stesso esito,
+			// quindi 400: la coda offline scarta le voci con un 4xx invece di
+			// ritentarle per sempre (vedi lib/outbox.js).
+			jsonError(w, ErrUnknownExercise, http.StatusBadRequest)
+			return
+		}
 		jsonError(w, ErrSaveSession, http.StatusInternalServerError)
 		return
 	}
