@@ -17,7 +17,11 @@
 
 services:
   db:
-    image: postgres:16-alpine
+    # Major pinned di proposito, e uguale a quello del deploy: PGDATA non è
+    # leggibile fra major diversi, quindi un tag che scivola da solo trasforma
+    # un redeploy in un container che non parte. Cambiando questo numero il
+    # volume va ricreato — `docker compose down -v`.
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: elite
       POSTGRES_PASSWORD: elite

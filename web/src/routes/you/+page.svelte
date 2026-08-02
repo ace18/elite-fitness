@@ -8,8 +8,9 @@
   import TabBar from '$lib/components/ui/TabBar.svelte';
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import MiniStat from '$lib/components/ui/MiniStat.svelte';
+  import { displayName } from '$lib/user.js';
 
-  let user = $state({ name: 'Alex' });
+  let user = $state({ name: '', email: '' });
 
   onMount(() => {
     if (!API.isAuthed()) {
@@ -39,10 +40,10 @@
   {#snippet footer()}<TabBar />{/snippet}
   <div class="scr-in" style="padding:12px 20px 28px; display:flex; flex-direction:column; gap:18px;">
     <div style="display:flex; flex-direction:column; align-items:center; gap:10px; padding-top:14px;">
-      <Avatar name={user.name} size={76} />
+      <Avatar name={displayName(user)} size={76} />
       <div style="text-align:center;">
-        <div class="t-title" style="font-size:22px;">{user.name || 'Alex'}</div>
-        <div class="t-sub" style="font-size:14px;">{user.email || 'alex@elite.fit'}</div>
+        <div class="t-title" style="font-size:22px;">{displayName(user)}</div>
+        <div class="t-sub" style="font-size:14px;">{user.email}</div>
       </div>
     </div>
     <div class="row" style="gap:11px;">

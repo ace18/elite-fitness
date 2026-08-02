@@ -13,8 +13,9 @@
   import Avatar from '$lib/components/ui/Avatar.svelte';
   import MiniStat from '$lib/components/ui/MiniStat.svelte';
   import Btn from '$lib/components/ui/Btn.svelte';
+  import { displayName } from '$lib/user.js';
 
-  let user = $state({ name: 'Alex' });
+  let user = $state({ name: '', email: '' });
 
   onMount(() => {
     if (!API.isAuthed()) {
@@ -61,9 +62,9 @@
       <div class="row" style="justify-content:space-between; padding-top:6px;">
         <div>
           <div class="t-sub" style="font-size:14px; font-weight:600;">{greeting()},</div>
-          <div class="t-title" style="font-size:26px;">{user.name || 'Alex'} 👋</div>
+          <div class="t-title" style="font-size:26px;">{displayName(user)} 👋</div>
         </div>
-        <div onclick={() => goto('/you')} role="button" tabindex="0" style="cursor:pointer;"><Avatar name={user.name} /></div>
+        <div onclick={() => goto('/you')} role="button" tabindex="0" style="cursor:pointer;"><Avatar name={displayName(user)} /></div>
       </div>
 
       <!-- streak + week ring -->

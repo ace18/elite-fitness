@@ -44,6 +44,12 @@ Postgres data persists in a named volume; `docker compose down -v` wipes it.
 a `devToken` and you can log in without sending mail — see the comments in
 `docker-compose.yml`.
 
+Postgres is pinned to **18**, the same major as the deployed database. If you
+have a volume from an older major the container refuses to start (`database
+files are incompatible with server`) — PGDATA can't be read across majors.
+`docker compose down -v` and let the migrations rebuild; there's nothing in a
+local volume that isn't in `internal/db/migrations/`.
+
 ### Without Docker
 
 For frontend work you want vite's hot reload, which means two processes and a
@@ -128,6 +134,79 @@ set `TRUST_PROXY_HEADERS=true` — see `.env.example` for why each one matters.
 
 Run **one replica**: migrations apply on boot and the plan-generation job store is
 in-process.
+
+### Deploying on Coolify
+
+**The database.** Add a PostgreSQL resource and pin the image to
+`postgres:18-alpine` rather than leaving the tag floating — a managed database
+that jumps a major on redeploy comes back as a crash loop. Copy its *internal*
+connection URL; the public one is for `psql` from your laptop, and that port is
+better left closed. Enable scheduled backups before there are real users in
+there: Coolify does not take any on its own.
+
+**The application.** Deploy the **published image**, not the repository:
+`.github/workflows/docker-publish.yml` already builds it on GitHub and pushes to
+`ghcr.io/ace18/elite-fitness`. Pointing Coolify at the Dockerfile instead would
+move a `pnpm install` + `vite build` + Go compile onto the machine that is also
+serving the app, at every deploy, and give up the `sha-<commit>` tags that make
+rollback a matter of changing a string.
+
+So: resource type **Docker Image**, `ghcr.io/ace18/elite-fitness:master`, port
+**8080**, health check path `/healthz`. Keep it in the same project and
+environment as the database so the internal hostname resolves — if the boot log
+shows `no such host`, turn on *Advanced → Connect To Predefined Network*.
+
+Rolling back is repointing the tag: `sha-<commit>` for any build on `master`,
+or one of the `v*.*.*` tags the workflow publishes from version tags.
+
+**The environment.** Everything from the list above, plus `sslmode=disable` on
+`DATABASE_URL` — the Postgres container serves no TLS, and the traffic never
+leaves the Docker network. `API_URL` and `FRONTEND_URL` are both the public
+hostname. A first deploy against an empty database logs
+`migrations: applicata 001_init.sql` through the last file in
+`internal/db/migrations/`; `nessuna nuova migration` instead means you're
+pointed at a database that already has the schema.
+
+#### What will bite you
+
+- **Deploying the image means nothing watches for pushes.** The build pack's
+  git trigger is what you gave up; CI has to say when a new image is ready, so
+  add Coolify's deploy webhook as a final step in `docker-publish.yml`.
+- **`master` is a mutable tag.** Without *force pull* Coolify re-runs the
+  layers it already has and the deploy is a silent no-op — same code, green
+  checkmark.
+- **A private repo means a private GHCR package.** The server needs a PAT with
+  `read:packages`, registered in Coolify's registry settings or applied once on
+  the host with `docker login ghcr.io`.
+- **The published image is `linux/amd64` only.** On an ARM server it won't run;
+  that needs `platforms: linux/arm64` plus QEMU in the workflow, and a much
+  slower build.
+- **One replica, still.** The advisory lock in `internal/db/db.go` makes
+  concurrent migrations safe, but the plan-generation job store doesn't leave
+  the process: with two instances a client gets `202 {jobId}` from one and
+  polls the other, which has never heard of that job.
+- **`APP_ENV=production` makes `JWT_SECRET` and `RESEND_API_KEY` fatal if
+  missing.** The process exits during boot (`cmd/server/main.go`), which from
+  the outside is indistinguishable from a container that starts and dies.
+- **Don't set `PORT`.** The image fixes it at 8080 and that's what the proxy
+  targets; overriding it produces a healthy container the proxy can't reach.
+- **`TRUST_PROXY_HEADERS` only pays off behind Cloudflare.** Traefik terminates
+  every connection, so the magic-link rate limiter sees one client IP and users
+  lock each other out. The flag doesn't fix that by itself: the middleware
+  trusts `CF-Connecting-IP` and nothing else, because it's the only forwarding
+  header a client can't forge (`internal/middleware/realip.go`). Either put
+  Cloudflare in front as a proxied record and set it to `true`, or leave it
+  `false` and accept a shared bucket.
+- **The OAuth `redirect_uri` must match `API_URL` character for character** —
+  `https://<host>/api/auth/oauth/google/callback`, registered once the domain
+  is live. Apple additionally needs all four `APPLE_*` variables, and refuses
+  `http://` and `localhost`, so this is the first place it can be tested.
+- **The image is fixed to `TZ=Europe/Rome`.** "Which workout is today" comes
+  from `time.Now()`, so users in other timezones see the wrong day's session
+  between midnight and the offset. Fine while the audience is Italian; a
+  per-user timezone is the real fix.
+- **Postgres majors don't upgrade in place.** Moving off 18 later means a
+  `pg_dump` and restore, not an image tag change.
 
 ## How it's built
 
