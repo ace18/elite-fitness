@@ -152,7 +152,7 @@
     // PR check
     if (ex.prToBeat && weight >= ex.prToBeat) {
       prs = [...prs, { lift: ex.name, value: get(weightReps)(weight, reps), fresh: true }];
-      flashToast(`🏆 New PR — ${ex.name}!`);
+      flashToast($t('session.newPr', { lift: ex.name }));
     }
 
     if (finishing) {
@@ -301,7 +301,7 @@
             <div class="row" style="justify-content:space-between; margin-bottom:9px;">
               <span class="t-label" style="white-space:nowrap;">{$t('session.effortRpe')}</span>
               <span class="t-sub" style="font-size:12.5px; font-weight:700; color:{rpe != null ? rpeColor(rpe) : 'var(--ink3)'};">
-                {rpe == null ? 'tap how hard it felt' : rpe >= 9.5 ? 'maximal' : rpe >= 8 ? 'hard — 1-2 left' : rpe >= 7 ? 'challenging' : 'easy'}
+                {rpe == null ? $t('session.rpeHint') : rpe >= 9.5 ? $t('session.rpeMaximal') : rpe >= 8 ? $t('session.rpeHard') : rpe >= 7 ? $t('session.rpeChallenging') : $t('session.rpeEasy')}
               </span>
             </div>
             <RPEScale value={rpe} onChange={(v) => (rpe = v)} from={6} to={10} />
