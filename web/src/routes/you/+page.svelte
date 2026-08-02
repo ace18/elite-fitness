@@ -48,8 +48,6 @@
   let rows = $derived([
     [$t('you.units'), 'kg'],
     [$t('you.restTimer'), $t('you.restTimerValue')],
-    [$t('you.appleHealth'), $t('you.connected')],
-    [$t('you.notifications'), $t('you.on')],
     [$t('you.help'), '']
   ]);
 
