@@ -283,7 +283,7 @@
           <!-- input card -->
           <div class="card" style="padding:18px; margin-top:16px; box-shadow:var(--sh-md);">
             <div class="t-label" style="margin-bottom:6px;">{$t('session.weight')}</div>
-            <Stepper value={weight} onChange={(v) => (weight = v)} step={2.5} unit="kg" big />
+            <Stepper value={weight} onChange={(v) => (weight = v)} step={1} unit="kg" big />
             <div style="text-align:center; margin-top:8px;">
               {#if showSuggested}
                 <button class="chip chip--tint" onclick={() => (weight = ex.suggested)}>{$t('session.backToSuggested', { n: ex.suggested })}</button>
