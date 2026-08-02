@@ -119,6 +119,15 @@ func TestProgressMetricsRecentSessions(t *testing.T) {
 	if len(m.Recent) != 3 {
 		t.Fatalf("sessioni recenti = %d, attese 3", len(m.Recent))
 	}
+	// Il contatore della schermata Profilo conta da sempre, non la settimana:
+	// "Vecchia" è di dieci giorni fa e deve rientrare comunque.
+	if m.TotalSessions != 3 {
+		t.Errorf("allenamenti totali = %d, attesi 3", m.TotalSessions)
+	}
+	if m.TotalSessions < m.WeekSessions {
+		t.Errorf("totali (%d) < settimana (%d): i due contatori sono invertiti",
+			m.TotalSessions, m.WeekSessions)
+	}
 	// Dalla più recente alla più vecchia.
 	want := []string{"Recente", "Media", "Vecchia"}
 	for i, n := range want {

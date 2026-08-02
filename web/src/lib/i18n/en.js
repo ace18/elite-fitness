@@ -8,6 +8,7 @@ export const en = {
     reps: 'reps',
     sets: 'sets',
     exercises: 'exercises',
+    dayShort: 'd',
     days: 'days',
     continue: 'Continue',
     today: 'Today',

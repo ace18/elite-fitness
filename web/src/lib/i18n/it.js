@@ -13,6 +13,7 @@ export const it = {
     reps: 'reps',
     sets: 'set',
     exercises: 'esercizi',
+    dayShort: 'g',
     days: 'giorni',
     continue: 'Continua',
     today: 'Oggi',

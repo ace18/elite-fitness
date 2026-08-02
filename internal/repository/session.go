@@ -236,6 +236,12 @@ func (r *SessionRepo) GetProgressMetrics(ctx context.Context, userID string, wee
 	rows.Close()
 	m.Streak = calcStreak(dates)
 
+	// total sessions
+	_ = r.db.QueryRow(ctx,
+		`SELECT COUNT(*) FROM session_logs WHERE user_id = $1`,
+		userID,
+	).Scan(&m.TotalSessions)
+
 	// week sessions
 	_ = r.db.QueryRow(ctx,
 		`SELECT COUNT(*) FROM session_logs

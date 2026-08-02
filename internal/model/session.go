@@ -92,8 +92,12 @@ type BodyWeightEntry struct {
 }
 
 type ProgressMetrics struct {
-	Streak       int             `json:"streak"`
-	WeekSessions int             `json:"weekSessions"`
+	Streak int `json:"streak"`
+	// TotalSessions — allenamenti completati da sempre, per il contatore della
+	// schermata Profilo. WeekSessions non serve allo scopo: è solo la settimana
+	// corrente, e il giorno in cui riparte torna a zero.
+	TotalSessions int             `json:"totalSessions"`
+	WeekSessions  int             `json:"weekSessions"`
 	WeekGoal     int             `json:"weekGoal"`
 	BodyWeight   BodyWeightStats `json:"bodyWeight"`
 	Est1RM       Est1RMStats     `json:"est1RM"`

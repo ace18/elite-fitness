@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { API } from '$lib/api.js';
+  import { progress, reloadProgress } from '$lib/stores.js';
   import { t, locale, setLocale, LOCALES } from '$lib/i18n/index.js';
   import Screen from '$lib/components/ui/Screen.svelte';
   import TabBar from '$lib/components/ui/TabBar.svelte';
@@ -18,6 +19,25 @@
       return;
     }
     user = API.user();
+    reloadProgress();
+  });
+
+  // Le tre card in cima: numeri veri da /api/progress. Erano fissi a 86/12/23 —
+  // i valori del mockup, identici per chiunque, compreso chi si è appena
+  // iscritto e non si è ancora allenato.
+  //
+  // Questa schermata NON aspetta i dati come fanno Home e Progressi: qui sotto
+  // ci sono la lingua e il logout, che funzionano anche offline e non hanno
+  // motivo di stare dietro una richiesta di rete. Finché non arriva, le card
+  // mostrano un trattino — $num() lascia passare intatto quello che non è un
+  // numero, quindi non serve trattarlo a parte.
+  let p = $derived($progress);
+  let stats = $derived({
+    workouts: p?.totalSessions ?? '—',
+    streak: p?.streak ?? '—',
+    // Contratto "array, eventualmente vuoto", ma una risposta rimasta nella
+    // cache del service worker da una build vecchia può ancora avere null.
+    prs: p ? (p.prs?.length ?? 0) : '—'
   });
 
   function logout() {
@@ -47,9 +67,9 @@
       </div>
     </div>
     <div class="row" style="gap:11px;">
-      <MiniStat label={$t('you.workouts')} value="86" />
-      <MiniStat label={$t('you.streak')} value="12" unit="d" />
-      <MiniStat label={$t('you.prs')} value="23" />
+      <MiniStat label={$t('you.workouts')} value={stats.workouts} />
+      <MiniStat label={$t('you.streak')} value={stats.streak} unit={$t('common.dayShort')} />
+      <MiniStat label={$t('you.prs')} value={stats.prs} />
     </div>
     <!-- language switcher — the one setting on this screen that actually works -->
     <div class="card" style="padding:14px 16px;">
