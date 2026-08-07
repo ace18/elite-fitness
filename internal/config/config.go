@@ -14,7 +14,14 @@ type Config struct {
 	FrontendURL  string
 	AppEnv       string
 	AnthropicKey string
+	DeepSeekKey  string
 	ResendAPIKey string
+
+	// PlanProvider sceglie chi genera i piani: "anthropic" (default) o
+	// "deepseek". Esplicito e non dedotto dalla chiave presente: con due chiavi
+	// configurate, indovinare significherebbe cambiare fornitore senza che
+	// nessuno l'abbia chiesto.
+	PlanProvider string
 	EmailFrom    string
 
 	// TrustProxyHeaders — attivare SOLO se il backend sta dietro un proxy che
@@ -77,6 +84,11 @@ func Load() *Config {
 	if emailFrom == "" {
 		emailFrom = "ELITE <onboarding@resend.dev>"
 	}
+	planProvider := strings.ToLower(strings.TrimSpace(os.Getenv("PLAN_PROVIDER")))
+	if planProvider == "" {
+		planProvider = "anthropic"
+	}
+
 	apiURL := os.Getenv("API_URL")
 	if apiURL == "" {
 		apiURL = "http://localhost:" + port
@@ -88,7 +100,9 @@ func Load() *Config {
 		FrontendURL:  frontendURL,
 		AppEnv:       appEnv,
 		AnthropicKey: os.Getenv("ANTHROPIC_API_KEY"),
+		DeepSeekKey:  os.Getenv("DEEPSEEK_API_KEY"),
 		ResendAPIKey: os.Getenv("RESEND_API_KEY"),
+		PlanProvider: planProvider,
 		EmailFrom:    emailFrom,
 
 		TrustProxyHeaders:  os.Getenv("TRUST_PROXY_HEADERS") == "true",

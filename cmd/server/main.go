@@ -96,7 +96,11 @@ func main() {
 	go pruner.Run(ctx)
 
 	workoutSvc := service.NewWorkoutService(programRepo, sessionRepo)
-	aiSvc := service.NewAIService(cfg.AnthropicKey, programRepo, pool)
+	planner, err := newPlanner(cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+	aiSvc := service.NewAIService(planner, programRepo, pool)
 	planJobs := service.NewPlanJobStore()
 
 	// handlers
@@ -185,5 +189,25 @@ func main() {
 	fmt.Printf("EliteCoach backend listening on %s\n", addr)
 	if err := http.ListenAndServe(addr, r); err != nil {
 		log.Fatal(err)
+	}
+}
+
+// newPlanner sceglie il fornitore che genera i piani. Il fallito si prende
+// all'avvio e non alla prima generazione: un PLAN_PROVIDER scritto male, o una
+// chiave mancante, altrimenti si scoprirebbe solo dopo che un utente ha
+// aspettato qualche minuto.
+func newPlanner(cfg *config.Config) (service.PlanGenerator, error) {
+	switch cfg.PlanProvider {
+	case "anthropic":
+		// La chiave può restare vuota: l'SDK legge ANTHROPIC_API_KEY
+		// dall'ambiente per conto suo.
+		return service.NewAnthropicPlanner(cfg.AnthropicKey), nil
+	case "deepseek":
+		if cfg.DeepSeekKey == "" {
+			return nil, fmt.Errorf("PLAN_PROVIDER=deepseek ma DEEPSEEK_API_KEY non è impostata")
+		}
+		return service.NewDeepSeekPlanner(cfg.DeepSeekKey), nil
+	default:
+		return nil, fmt.Errorf("PLAN_PROVIDER=%q non riconosciuto: usa \"anthropic\" o \"deepseek\"", cfg.PlanProvider)
 	}
 }

@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -50,13 +52,13 @@ func TestRequestPlanAccumulatesStreamedToolUse(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	svc := &AIService{client: anthropic.NewClient(
+	planner := &AnthropicPlanner{client: anthropic.NewClient(
 		option.WithBaseURL(srv.URL),
 		option.WithAPIKey("test"),
 		option.WithMaxRetries(0),
 	)}
 
-	plan, err := svc.requestPlan(context.Background(), GeneratePlanInput{
+	plan, err := planner.RequestPlan(context.Background(), GeneratePlanInput{
 		Goal: "strength", Level: "intermediate", Days: 3, Length: 60,
 	})
 	if err != nil {
@@ -111,13 +113,13 @@ func TestRequestPlanRejectsResponseWithoutPlan(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	svc := &AIService{client: anthropic.NewClient(
+	planner := &AnthropicPlanner{client: anthropic.NewClient(
 		option.WithBaseURL(srv.URL),
 		option.WithAPIKey("test"),
 		option.WithMaxRetries(0),
 	)}
 
-	if _, err := svc.requestPlan(context.Background(), GeneratePlanInput{
+	if _, err := planner.RequestPlan(context.Background(), GeneratePlanInput{
 		Goal: "strength", Level: "beginner", Days: 3, Length: 45,
 	}); err == nil {
 		t.Fatal("expected an error when the response carries no training plan")
@@ -197,4 +199,42 @@ func TestLayoutWorkoutsLiftsMissingWeekToOne(t *testing.T) {
 // jsonString incapsula s come stringa JSON, virgolette comprese.
 func jsonString(s string) string {
 	return `"` + strings.ReplaceAll(s, `"`, `\"`) + `"`
+}
+
+// fakePlanner sta al posto di un fornitore qualsiasi.
+type fakePlanner struct {
+	plan aiPlanOutput
+	err  error
+}
+
+func (f fakePlanner) RequestPlan(context.Context, GeneratePlanInput) (aiPlanOutput, error) {
+	return f.plan, f.err
+}
+
+// Il senso dell'interfaccia: AIService parla con PlanGenerator, non con Claude.
+// Qui il servizio non ha nemmeno un database — se GeneratePlan non si fermasse
+// all'errore del fornitore, andrebbe in panico su savePlan. È la prova che il
+// confine è dove dice di essere.
+func TestGeneratePlanGoesThroughThePlannerInterface(t *testing.T) {
+	boom := errors.New("fornitore giù")
+	svc := NewAIService(fakePlanner{err: boom}, nil, nil)
+
+	if _, err := svc.GeneratePlan(context.Background(), "u1", GeneratePlanInput{}); !errors.Is(err, boom) {
+		t.Errorf("errore = %v, volevo quello del fornitore", err)
+	}
+}
+
+// Lo schema è JSON Schema e basta: deve poter essere serializzato così com'è
+// per finire dentro il tipo di un altro SDK. Se qualcuno ci infilasse un tipo
+// specifico di Anthropic, questo test lo becca.
+func TestPlanToolSchemaIsPlainJSON(t *testing.T) {
+	properties, required := planToolSchema()
+	if _, err := json.Marshal(map[string]any{
+		"type": "object", "properties": properties, "required": required,
+	}); err != nil {
+		t.Fatalf("lo schema non è JSON puro: %v", err)
+	}
+	if len(required) == 0 {
+		t.Error("nessun campo obbligatorio: il modello può restituire un piano vuoto")
+	}
 }
