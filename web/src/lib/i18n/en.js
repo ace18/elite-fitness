@@ -162,10 +162,15 @@ export const en = {
     backendDown: 'Backend unreachable.',
     startFailed: 'Could not start the plan: {msg}',
     oneRmLabel: 'YOUR CURRENT 1RM',
+    // Mentions back squat because the cycles that declare a 1RM window are the
+    // squat ones. A coach-authored program can prescribe loads on anything
+    // else, and that case uses oneRmHelpGeneric.
     oneRmHelp: 'This cycle prescribes the weight for every session, so it needs your tested back squat max.',
+    oneRmHelpGeneric: 'This program computes the load for some sessions from your max.',
     oneRmDay1: 'Week 1 · Day 1',
     oneRmDay2: 'Week 1 · Day 2',
     oneRmRange: 'This cycle is built for a max between {min} and {max} kg.',
+    oneRmRequired: 'Enter your max to start this program.',
     prescribedLoads: 'Every session has a set weight, calculated from your max.',
     generateFailed: 'Plan generation failed: {msg}',
     // questionnaire

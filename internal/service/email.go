@@ -15,6 +15,10 @@ import (
 // AuthService possa girare anche senza provider (in dev) e per i test.
 type Mailer interface {
 	SendMagicLink(ctx context.Context, to, link, locale string) error
+	// SendAdminLoginLink — l'accesso al pannello di gestione. Senza `locale`:
+	// il pannello è solo in italiano, e chi lo usa è chi possiede
+	// l'installazione, non un utente qualsiasi.
+	SendAdminLoginLink(ctx context.Context, to, link string) error
 }
 
 const resendEndpoint = "https://api.resend.com/emails"
@@ -56,6 +60,21 @@ func (m *ResendMailer) SendMagicLink(ctx context.Context, to, link, locale strin
 	})
 }
 
+// SendAdminLoginLink usa lo stesso impianto grafico del magic link con testi
+// suoi. Diversi non per gusto: chi riceve questa email deve capire subito che
+// non è l'accesso all'app ma al pannello che vede i dati di tutti, e che se non
+// l'ha chiesto lui è un problema — non qualcosa da ignorare.
+func (m *ResendMailer) SendAdminLoginLink(ctx context.Context, to, link string) error {
+	c := adminLoginCopy
+	return m.send(ctx, resendEmail{
+		From:    m.from,
+		To:      []string{to},
+		Subject: c.subject,
+		HTML:    magicLinkHTML(link, c),
+		Text:    magicLinkText(link, c),
+	})
+}
+
 // emailCopy — i testi dell'email. Vivono qui e non nei cataloghi del frontend
 // perché l'email parte dal server, prima ancora che l'utente abbia un account.
 type emailCopy struct {
@@ -79,6 +98,19 @@ var emailCopies = map[string]emailCopy{
 		orPaste: "Or paste this link into your browser:",
 		ignore:  "If you didn't request this, you can ignore this email.",
 	},
+}
+
+// adminLoginCopy — solo italiano, come il pannello.
+var adminLoginCopy = emailCopy{
+	subject: "Accesso al pannello ELITE",
+	heading: "Accedi al pannello ELITE",
+	intro: "Tocca il pulsante qui sotto per entrare nel pannello di gestione. " +
+		"Il link è valido una sola volta e scade fra 10 minuti.",
+	button:  "Entra nel pannello →",
+	orPaste: "Oppure incolla questo link nel browser:",
+	ignore: "Se non hai richiesto tu questo accesso, avvisa gli altri " +
+		"amministratori: qualcuno conosce il tuo indirizzo e sa che " +
+		"amministri questa installazione.",
 }
 
 // magicLinkCopy sceglie la lingua, con l'italiano come predefinito — è la

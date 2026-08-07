@@ -1,0 +1,108 @@
+{{define "title"}}Esercizi{{end}}
+
+{{define "content"}}
+<div class="head">
+  <h1>Esercizi</h1>
+  <div class="counts"><span><b>{{len .Exercises}}</b> in libreria</span></div>
+</div>
+
+<div class="cols form-right">
+  <div class="col">
+    <div class="card flush">
+      <table class="grid">
+        <thead>
+          <tr>
+            <th>Esercizio</th>
+            <th>Gruppo</th>
+            <th>Tipo</th>
+            <th class="n">Uso</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Exercises}}
+          <tr>
+            <td><b>{{.Name}}</b></td>
+            <td>{{.MuscleGroup}}</td>
+            <td>
+              {{if .IsIsolation}}<span class="tag grey">isolamento</span>
+              {{else}}<span class="tag grey">fondamentale</span>{{end}}
+            </td>
+            <td class="n">
+              {{if .InTemplates}}<span title="righe di template">{{.InTemplates}} template</span>{{end}}
+              {{if .InHistory}}<em class="muted">{{.InHistory}} serie</em>{{end}}
+              {{if .Deletable}}<span class="muted">—</span>{{end}}
+            </td>
+            <td class="n nowrap">
+              <a class="link" href="{{$.URL}}/esercizi/{{.ID}}">Modifica</a>
+              {{if .Deletable}}
+              <form class="inline" method="post" action="{{$.URL}}/esercizi/{{.ID}}/elimina">
+                <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+                <button type="submit" class="link danger">Elimina</button>
+              </form>
+              {{end}}
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="col narrow">
+    {{with .Editing}}
+    <form class="card" method="post" action="{{$.URL}}/esercizi/{{.ID}}">
+      <h2>Modifica esercizio</h2>
+      <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+      <label for="name">Nome</label>
+      <input id="name" name="name" type="text" required value="{{.Name}}">
+      <label for="muscleGroup">Gruppo muscolare</label>
+      <input id="muscleGroup" name="muscleGroup" type="text" required
+             list="muscoli" value="{{.MuscleGroup}}">
+      <label for="category">Tipo</label>
+      <select id="category" name="category">
+        <option value="compound" {{if not .IsIsolation}}selected{{end}}>Fondamentale — incrementi da 2,5 kg</option>
+        <option value="isolation" {{if .IsIsolation}}selected{{end}}>Isolamento — incrementi da 1,25 kg</option>
+      </select>
+      {{if .InHistory}}
+      <p class="muted small hint">
+        Rinominarlo si può: lo storico degli atleti conserva il nome che
+        l'esercizio aveva al momento della registrazione, quindi
+        {{.InHistory}} serie continueranno a dire «{{.Name}}».
+      </p>
+      {{end}}
+      <button type="submit" class="btn">Salva</button>
+      <p class="muted small hint"><a class="link" href="{{$.URL}}/esercizi">Annulla</a></p>
+    </form>
+    {{else}}
+    <form class="card" method="post" action="{{.URL}}/esercizi">
+      <h2>Aggiungi esercizio</h2>
+      <input type="hidden" name="_csrf" value="{{.CSRF}}">
+      <label for="name">Nome</label>
+      <input id="name" name="name" type="text" required placeholder="es. Front Squat">
+      <label for="muscleGroup">Gruppo muscolare</label>
+      <input id="muscleGroup" name="muscleGroup" type="text" required
+             list="muscoli" placeholder="es. Quadricipiti">
+      <label for="category">Tipo</label>
+      <select id="category" name="category">
+        <option value="compound">Fondamentale — incrementi da 2,5 kg</option>
+        <option value="isolation">Isolamento — incrementi da 1,25 kg</option>
+      </select>
+      <button type="submit" class="btn">Aggiungi</button>
+    </form>
+    {{end}}
+
+    <!-- I gruppi già in uso, come suggerimenti. datalist e non select: il campo
+         resta libero, così un gruppo nuovo si scrive e basta. -->
+    <datalist id="muscoli">
+      {{range .Muscles}}<option value="{{.}}"></option>{{end}}
+    </datalist>
+
+    <p class="muted small">
+      Il tipo decide di quanto sale il carico quando l'atleta è in anticipo
+      sull'RPE: su un isolamento il disco più piccolo pesa molto di più in
+      percentuale.
+    </p>
+  </div>
+</div>
+{{end}}

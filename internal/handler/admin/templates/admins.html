@@ -1,0 +1,76 @@
+{{define "title"}}Amministratori{{end}}
+
+{{define "content"}}
+<div class="head">
+  <h1>Amministratori</h1>
+</div>
+
+<div class="cols form-right">
+  <div class="col">
+    <div class="card flush">
+      <table class="grid">
+        <thead>
+          <tr>
+            <th>Amministratore</th>
+            <th>Aggiunto da</th>
+            <th>Ultimo accesso</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Admins}}
+          <tr {{if not .Active}}class="off"{{end}}>
+            <td>
+              <b>{{.Email}}</b>
+              {{if not .Active}}<span class="tag grey">disattivato</span>{{end}}
+              {{if eq .ID $.Admin.ID}}<span class="tag grey">tu</span>{{end}}
+              <em class="muted">aggiunto il {{data .CreatedAt}}</em>
+            </td>
+            <td>
+              {{if .CreatedByEmail}}{{.CreatedByEmail}}
+              {{else}}<span class="muted">primo amministratore</span>{{end}}
+            </td>
+            <td>{{quando .LastLoginAt}}</td>
+            <td class="n">
+              {{if ne .ID $.Admin.ID}}
+              <form method="post" action="{{$.URL}}/amministratori/{{.ID}}/stato">
+                <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+                {{if .Active}}
+                  <input type="hidden" name="azione" value="disattiva">
+                  <button type="submit" class="link danger">Disattiva</button>
+                {{else}}
+                  <input type="hidden" name="azione" value="riattiva">
+                  <button type="submit" class="link">Riattiva</button>
+                {{end}}
+              </form>
+              {{end}}
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="col narrow">
+    <form class="card" method="post" action="{{.URL}}/amministratori">
+      <h2>Aggiungi</h2>
+      <p class="muted">
+        Il nuovo amministratore entra dalla pagina di accesso chiedendo il link
+        al suo indirizzo. Vedrà i dati di tutti gli atleti.
+      </p>
+      <input type="hidden" name="_csrf" value="{{.CSRF}}">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" required
+             autocomplete="off" placeholder="nome@dominio.it">
+      <button type="submit" class="btn">Aggiungi amministratore</button>
+    </form>
+
+    <p class="muted small">
+      Non esiste iscrizione al pannello: gli accessi si creano solo da qui.
+      Chi viene disattivato perde l'accesso subito, anche se ha una sessione
+      aperta.
+    </p>
+  </div>
+</div>
+{{end}}

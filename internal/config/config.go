@@ -41,6 +41,15 @@ type Config struct {
 	// quello che rende l'app una sola origine.
 	StaticDir string
 
+	// AdminBootstrapEmail — il primo amministratore del pannello, creato
+	// all'avvio se la tabella `admins` è vuota. Da lì in poi gli accessi si
+	// creano dal pannello stesso: non esiste registrazione.
+	//
+	// Resta impostata anche dopo il primo avvio (sta in .env o nelle variabili
+	// di Coolify) e viene riletta a ogni riavvio, quindi la condizione è
+	// "tabella vuota" e non "questo indirizzo manca" — vedi AdminRepo.Bootstrap.
+	AdminBootstrapEmail string
+
 	GoogleClientID     string
 	GoogleClientSecret string
 
@@ -105,15 +114,16 @@ func Load() *Config {
 		PlanProvider: planProvider,
 		EmailFrom:    emailFrom,
 
-		TrustProxyHeaders:  os.Getenv("TRUST_PROXY_HEADERS") == "true",
-		APIURL:             apiURL,
-		StaticDir:          os.Getenv("STATIC_DIR"),
-		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
-		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		AppleTeamID:        os.Getenv("APPLE_TEAM_ID"),
-		AppleServicesID:    os.Getenv("APPLE_SERVICES_ID"),
-		AppleKeyID:         os.Getenv("APPLE_KEY_ID"),
-		ApplePrivateKey:    os.Getenv("APPLE_PRIVATE_KEY"),
+		TrustProxyHeaders:   os.Getenv("TRUST_PROXY_HEADERS") == "true",
+		APIURL:              apiURL,
+		StaticDir:           os.Getenv("STATIC_DIR"),
+		AdminBootstrapEmail: strings.ToLower(strings.TrimSpace(os.Getenv("ADMIN_BOOTSTRAP_EMAIL"))),
+		GoogleClientID:      os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleClientSecret:  os.Getenv("GOOGLE_CLIENT_SECRET"),
+		AppleTeamID:         os.Getenv("APPLE_TEAM_ID"),
+		AppleServicesID:     os.Getenv("APPLE_SERVICES_ID"),
+		AppleKeyID:          os.Getenv("APPLE_KEY_ID"),
+		ApplePrivateKey:     os.Getenv("APPLE_PRIVATE_KEY"),
 	}
 }
 

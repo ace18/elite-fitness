@@ -1,0 +1,191 @@
+{{define "title"}}{{.Template.Name}}{{end}}
+
+{{define "content"}}
+<p class="crumb"><a href="{{.URL}}/programmi">← Programmi</a></p>
+
+<div class="head">
+  <div>
+    <h1>{{.Template.Glyph}} {{.Template.Name}}</h1>
+    <p class="muted">
+      {{.Template.ID}} · {{.Template.TotalWeeks}} settimane ·
+      {{.Template.DaysPerWeek}} sedute a settimana
+      {{if .Template.Archived}}· <b class="warn">archiviato</b>{{end}}
+    </p>
+  </div>
+</div>
+
+{{if not .Template.Complete}}
+<p class="banner warn-banner">
+  Questo programma non ha ancora nessun giorno. Assegnato così, l'atleta si
+  ritrova un piano vuoto: aggiungi almeno un giorno al blocco della settimana 1.
+</p>
+{{end}}
+
+<div class="cols form-right">
+  <div class="col">
+
+    <!-- I blocchi. Un blocco è una settimana in cui lo schema cambia: quello
+         che vi si definisce resta in vigore fino al blocco successivo, quindi
+         le settimane intermedie non vanno ripetute. -->
+    {{range .Blocks}}
+    <div class="card flush">
+      <h2 class="pad">Blocco · dalla settimana {{.WeekNumber}}</h2>
+      <table class="grid">
+        <thead>
+          <tr>
+            <th>Giorno</th>
+            <th>Quando</th>
+            <th class="n">Esercizi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Days}}
+          <tr class="row" onclick="location='{{$.URL}}/programmi/{{$.Template.ID}}/giorni/{{.ID}}'">
+            <td>
+              <a href="{{$.URL}}/programmi/{{$.Template.ID}}/giorni/{{.ID}}"><b>{{.Name}}</b></a>
+              {{if .Focus}}<em class="muted">{{.Focus}}</em>{{end}}
+            </td>
+            <td>{{giorno .DayOfWeek}}</td>
+            <td class="n">
+              {{if .Exercises}}{{len .Exercises}}
+              {{else}}<span class="warn">0</span>{{end}}
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{end}}
+
+    <form class="card" method="post" action="{{.URL}}/programmi/{{.Template.ID}}/giorni">
+      <h2>Aggiungi un giorno</h2>
+      <input type="hidden" name="_csrf" value="{{.CSRF}}">
+
+      <label for="dayName">Nome</label>
+      <input id="dayName" name="name" type="text" required placeholder="es. Giorno 1 · Volume">
+
+      <label for="focus">Focus</label>
+      <input id="focus" name="focus" type="text" placeholder="es. Squat · Accessori">
+
+      <div class="pair-inputs">
+        <div>
+          <label for="weekNumber">Dalla settimana</label>
+          <input id="weekNumber" name="weekNumber" type="number" min="1"
+                 max="{{.Template.TotalWeeks}}" value="{{.NextWeek}}">
+        </div>
+        <div>
+          <label for="dayOfWeek">Giorno</label>
+          <select id="dayOfWeek" name="dayOfWeek">
+            {{range giorni}}<option value="{{.}}">{{giorno .}}</option>{{end}}
+          </select>
+        </div>
+      </div>
+      <p class="muted small hint">
+        Mettendo un giorno in una settimana successiva si apre un blocco nuovo:
+        da lì in poi vale quello schema, fino al blocco dopo. È così che si
+        scrive una periodizzazione senza ricopiare ogni settimana.
+      </p>
+
+      <button type="submit" class="btn">Aggiungi giorno</button>
+    </form>
+  </div>
+
+  <div class="col narrow">
+    <form class="card" method="post" action="{{.URL}}/programmi/{{.Template.ID}}">
+      <h2>Dati del programma</h2>
+      <input type="hidden" name="_csrf" value="{{.CSRF}}">
+
+      <label for="name">Nome</label>
+      <input id="name" name="name" type="text" required value="{{.Template.Name}}">
+      <label for="goal">Obiettivo</label>
+      <input id="goal" name="goal" type="text" value="{{.Template.Goal}}">
+      <label for="tfocus">Focus</label>
+      <input id="tfocus" name="focus" type="text" value="{{.Template.Focus}}">
+      <label for="level">Livello</label>
+      <input id="level" name="level" type="text" value="{{.Template.Level}}">
+      <label for="glyph">Simbolo</label>
+      <input id="glyph" name="glyph" type="text" value="{{.Template.Glyph}}">
+      <label for="tag">Etichetta</label>
+      <input id="tag" name="tag" type="text" value="{{with .Template.Tag}}{{.}}{{end}}">
+
+      <div class="pair-inputs">
+        <div>
+          <label for="totalWeeks">Settimane</label>
+          <input id="totalWeeks" name="totalWeeks" type="number" min="1" value="{{.Template.TotalWeeks}}">
+        </div>
+        <div>
+          <label for="daysPerWeek">Giorni/sett</label>
+          <input id="daysPerWeek" name="daysPerWeek" type="number" min="1" max="7" value="{{.Template.DaysPerWeek}}">
+        </div>
+        <div>
+          <label for="sessionMin">Minuti</label>
+          <input id="sessionMin" name="sessionMin" type="number" min="10" value="{{.Template.SessionMin}}">
+        </div>
+      </div>
+
+      <label>Finestra di massimali (kg)</label>
+      <div class="pair-inputs">
+        <div>
+          <input name="minOneRm" type="text" inputmode="decimal" placeholder="min"
+                 value="{{with .Template.MinOneRM}}{{num .}}{{end}}">
+        </div>
+        <div>
+          <input name="maxOneRm" type="text" inputmode="decimal" placeholder="max"
+                 value="{{with .Template.MaxOneRM}}{{num .}}{{end}}">
+        </div>
+      </div>
+      <p class="muted small hint">
+        Solo per i programmi a carico prescritto, dove gli incrementi sono in
+        chili pieni e quindi valgono in una finestra sola. Lascia vuoto per tutti
+        gli altri.
+      </p>
+
+      <button type="submit" class="btn">Salva</button>
+    </form>
+
+    <div class="card">
+      <h2>Ritiro</h2>
+      {{if .Template.Archived}}
+        <p class="muted">Archiviato: non compare fra i programmi assegnabili.</p>
+        <form method="post" action="{{.URL}}/programmi/{{.Template.ID}}/stato">
+          <input type="hidden" name="_csrf" value="{{.CSRF}}">
+          <input type="hidden" name="azione" value="ripristina">
+          <button type="submit" class="link">Rimetti in catalogo</button>
+        </form>
+      {{else}}
+        <p class="muted">
+          Archiviandolo sparisce dai programmi assegnabili. Chi lo sta già
+          seguendo continua senza accorgersene: il suo è una copia.
+        </p>
+        <form method="post" action="{{.URL}}/programmi/{{.Template.ID}}/stato">
+          <input type="hidden" name="_csrf" value="{{.CSRF}}">
+          <input type="hidden" name="azione" value="archivia">
+          <button type="submit" class="link">Archivia</button>
+        </form>
+      {{end}}
+
+      {{if .Template.Deletable}}
+      <p class="muted small hint">
+        Nessuno l'ha mai ricevuto, quindi si può anche eliminare del tutto —
+        giorni ed esercizi compresi.
+      </p>
+      <form method="post" action="{{.URL}}/programmi/{{.Template.ID}}/elimina">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}">
+        <button type="submit" class="link danger">Elimina definitivamente</button>
+      </form>
+      {{else}}
+      <p class="muted small hint">
+        Non si può eliminare: {{.Template.InUse}} programmi assegnati rimandano
+        qui.
+      </p>
+      {{end}}
+    </div>
+
+    <p class="muted small">
+      Le modifiche valgono per le assegnazioni future. Chi ha già questo
+      programma non se ne accorge: al momento dell'assegnazione ne è stata fatta
+      una copia, ed è quella che sta seguendo.
+    </p>
+  </div>
+</div>
+{{end}}

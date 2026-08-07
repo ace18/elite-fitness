@@ -1,0 +1,69 @@
+{{define "title"}}Atleti{{end}}
+
+{{define "content"}}
+<div class="head">
+  <h1>Atleti</h1>
+  <div class="counts">
+    <span><b>{{.Total}}</b> iscritti</span>
+    <span><b>{{.Active}}</b> attivi questa settimana</span>
+    {{if .Stale}}<span class="warn"><b>{{.Stale}}</b> fermi</span>{{end}}
+  </div>
+</div>
+
+{{if not .Athletes}}
+  <div class="card empty">
+    <h2>Ancora nessun iscritto</h2>
+    <p class="muted">Qui compariranno gli atleti man mano che si registrano nell'app.</p>
+  </div>
+{{else}}
+<div class="card flush">
+<table class="grid">
+  <thead>
+    <tr>
+      <th>Atleta</th>
+      <th>Programma</th>
+      <th class="n">Settimana</th>
+      <th class="n">7 giorni</th>
+      <th class="n">Totali</th>
+      <th>Ultimo allenamento</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range .Athletes}}
+    <tr class="row" onclick="location='{{$.URL}}/atleti/{{.ID}}'">
+      <td>
+        <a class="who-cell" href="{{$.URL}}/atleti/{{.ID}}">
+          <span class="dot">{{iniziali .Name .Email}}</span>
+          <span>
+            <b>{{.Display}}</b>
+            {{if .Name}}<em>{{.Email}}</em>{{end}}
+          </span>
+        </a>
+      </td>
+      <td>
+        {{if .Program}}{{.Program.Name}}
+        {{else}}<span class="muted">nessuno</span>{{end}}
+      </td>
+      <td class="n">
+        {{if .Program}}{{.Program.Week}}<span class="muted">/{{.Program.TotalWeeks}}</span>
+        {{else}}<span class="muted">—</span>{{end}}
+      </td>
+      <td class="n">
+        {{if .Sessions7d}}<b>{{.Sessions7d}}</b>{{else}}<span class="muted">0</span>{{end}}
+        {{if .Program}}<span class="muted">/{{.Program.DaysPerWeek}}</span>{{end}}
+      </td>
+      <td class="n">{{.TotalSessions}}</td>
+      <td>
+        {{if .LastSessionAt}}
+          <span {{if .Stale 10}}class="warn"{{end}}>{{quando .LastSessionAt}}</span>
+        {{else}}
+          <span class="muted">mai</span>
+        {{end}}
+      </td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+</div>
+{{end}}
+{{end}}

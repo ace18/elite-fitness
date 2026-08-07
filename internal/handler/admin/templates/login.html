@@ -1,0 +1,40 @@
+{{define "title"}}Accesso{{end}}
+
+{{define "content"}}
+<div class="login">
+  <h1 class="logo">ELITE<span>pannello</span></h1>
+
+  {{if .Sent}}
+    <div class="card">
+      <h2>Controlla la posta</h2>
+      <p class="muted">
+        Se <b>{{.Email}}</b> è di un amministratore, fra pochi istanti riceverà un
+        link per entrare. Vale una volta sola e scade fra 10 minuti.
+      </p>
+      {{if .DevToken}}
+        <!-- Solo in sviluppo, dove può non esserci un provider di posta
+             configurato: senza questo il pannello sarebbe irraggiungibile in
+             locale. In produzione DevToken è sempre vuoto. -->
+        <p class="dev">
+          <b>Sviluppo</b> — entra direttamente:<br>
+          <a href="{{$.URL}}/accesso/verifica?token={{.DevToken}}">{{.DevToken}}</a>
+        </p>
+      {{end}}
+      <p><a class="link" href="{{.URL}}/accesso">Usa un altro indirizzo</a></p>
+    </div>
+  {{else}}
+    <form class="card" method="post" action="{{.URL}}/accesso">
+      <h2>Accedi</h2>
+      <p class="muted">Ti mandiamo un link per entrare. Nessuna password.</p>
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" autocomplete="email"
+             required autofocus value="{{.Email}}" placeholder="nome@dominio.it">
+      <button type="submit" class="btn">Mandami il link</button>
+    </form>
+    <p class="muted small">
+      Il pannello è riservato agli amministratori di questa installazione.
+      Non c'è iscrizione: gli accessi li crea chi già ne ha uno.
+    </p>
+  {{end}}
+</div>
+{{end}}

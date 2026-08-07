@@ -36,6 +36,7 @@ const (
 	ErrNoWorkoutToday   = "no_workout_today"
 	ErrPlanInput        = "plan_input_required"
 	ErrOneRMRange       = "one_rm_out_of_range"
+	ErrOneRMRequired    = "one_rm_required"
 	ErrWeightRequired   = "weight_required"
 	ErrPlanGeneration   = "plan_generation_failed"
 	ErrPlanJobNotFound  = "plan_job_not_found"
@@ -64,6 +65,7 @@ var errorMessages = map[string]string{
 	ErrNoWorkoutToday:   "no workout today",
 	ErrPlanInput:        "goal, level, days required",
 	ErrOneRMRange:       "1RM outside the range this template supports",
+	ErrOneRMRequired:    "this template computes its loads from your 1RM",
 	ErrWeightRequired:   "weight required",
 	ErrPlanGeneration:   "plan generation failed",
 	ErrPlanJobNotFound:  "plan generation not found",

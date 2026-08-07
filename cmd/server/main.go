@@ -12,6 +12,7 @@ import (
 	"github.com/elitecoach/backend/internal/config"
 	"github.com/elitecoach/backend/internal/db"
 	"github.com/elitecoach/backend/internal/handler"
+	"github.com/elitecoach/backend/internal/handler/admin"
 	"github.com/elitecoach/backend/internal/middleware"
 	"github.com/elitecoach/backend/internal/repository"
 	"github.com/elitecoach/backend/internal/service"
@@ -47,6 +48,19 @@ func main() {
 	programRepo := repository.NewProgramRepo(pool)
 	sessionRepo := repository.NewSessionRepo(pool)
 	oauthStateRepo := repository.NewOAuthStateRepo(pool)
+	adminRepo := repository.NewAdminRepo(pool)
+
+	// Il primo amministratore del pannello. Solo il primo: se la tabella ha già
+	// qualcuno, Bootstrap non fa niente e la variabile resta lì innocua.
+	if cfg.AdminBootstrapEmail != "" {
+		created, err := adminRepo.Bootstrap(ctx, cfg.AdminBootstrapEmail)
+		if err != nil {
+			log.Fatalf("bootstrap amministratore: %v", err)
+		}
+		if created {
+			fmt.Printf("[admin] creato il primo amministratore: %s\n", cfg.AdminBootstrapEmail)
+		}
+	}
 
 	// services
 	var mailer service.Mailer
@@ -92,6 +106,7 @@ func main() {
 		service.DefaultPruneInterval, service.DefaultPruneRetention,
 		service.PruneTask{Name: "magic_link_tokens", Delete: userRepo.DeleteExpiredMagicLinksBefore},
 		service.PruneTask{Name: "oauth_states", Delete: oauthStateRepo.DeleteExpiredBefore},
+		service.PruneTask{Name: "admin_login_tokens", Delete: adminRepo.DeleteExpiredTokensBefore},
 	)
 	go pruner.Run(ctx)
 
@@ -111,6 +126,17 @@ func main() {
 	completer := service.NewProgramCompleter(programRepo, sessionRepo)
 	sessionH := handler.NewSessionHandler(sessionRepo, completer)
 	progressH := handler.NewProgressHandler(sessionRepo, programRepo)
+
+	// Il pannello di gestione. baseURL è APIURL e non FrontendURL: il pannello
+	// lo serve questo binario, quindi il link di accesso deve tornare qui.
+	adminSvc := service.NewAdminService(adminRepo, cfg.JWTSecret, cfg.IsDev(), mailer, cfg.APIURL)
+	catalogRepo := repository.NewCatalogRepo(pool)
+	adminH, err := admin.New(adminSvc, adminRepo, programRepo, sessionRepo, catalogRepo, cfg.IsDev())
+	if err != nil {
+		// Un template che non compila è un errore di programmazione, e si vede
+		// solo eseguendolo: meglio all'avvio che alla prima visita.
+		log.Fatalf("pannello admin: %v", err)
+	}
 
 	// router
 	r := chi.NewRouter()
@@ -171,6 +197,11 @@ func main() {
 		r.Get("/api/progress", progressH.GetProgress)
 		r.Post("/api/progress/weight", progressH.LogWeight)
 	})
+
+	// Il pannello di gestione, reso dal server. Va montato prima del catch-all
+	// dello SPA: quello risponde index.html a tutto ciò che non è /api/, quindi
+	// senza questa registrazione /admin finirebbe all'app degli atleti.
+	r.Mount("/admin", adminH.Routes())
 
 	// Il frontend compilato, se c'è, sta sotto la stessa origine dell'API.
 	// Va registrato per ultimo: è il catch-all di tutto ciò che non è una rotta

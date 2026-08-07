@@ -1,0 +1,90 @@
+{{define "title"}}Programmi{{end}}
+
+{{define "content"}}
+<div class="head">
+  <h1>Programmi</h1>
+  <div class="counts"><span><b>{{len .Templates}}</b> nel catalogo</span></div>
+</div>
+
+<div class="cols form-right">
+  <div class="col">
+    <div class="card flush">
+      <table class="grid">
+        <thead>
+          <tr>
+            <th>Programma</th>
+            <th class="n">Durata</th>
+            <th class="n">Giorni</th>
+            <th class="n">Blocchi</th>
+            <th class="n">Assegnato</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Templates}}
+          <tr class="row {{if .Archived}}off{{end}}"
+              onclick="location='{{$.URL}}/programmi/{{.ID}}'">
+            <td>
+              <a href="{{$.URL}}/programmi/{{.ID}}">
+                <b>{{.Glyph}} {{.Name}}</b>
+                {{if .Archived}}<span class="tag grey">archiviato</span>{{end}}
+                {{if not .Complete}}<span class="tag amber">senza giorni</span>{{end}}
+              </a>
+              <em class="muted">{{.ID}} · {{.Focus}}</em>
+            </td>
+            <td class="n nowrap">{{.TotalWeeks}} sett<span class="muted">/{{.DaysPerWeek}}×</span></td>
+            <td class="n">{{.Days}}</td>
+            <td class="n">{{.Blocks}}</td>
+            <td class="n">
+              {{if .InUse}}{{.InUse}}{{else}}<span class="muted">—</span>{{end}}
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="col narrow">
+    <form class="card" method="post" action="{{.URL}}/programmi">
+      <h2>Nuovo programma</h2>
+      <input type="hidden" name="_csrf" value="{{.CSRF}}">
+
+      <label for="name">Nome</label>
+      <input id="name" name="name" type="text" required placeholder="es. Forza Base">
+
+      <label for="id">Identificativo</label>
+      <input id="id" name="id" type="text" placeholder="ricavato dal nome se lo lasci vuoto">
+      <p class="muted small hint">
+        Minuscole, numeri e trattini. Non si potrà più cambiare: è la chiave a
+        cui restano agganciati i programmi assegnati.
+      </p>
+
+      <label for="goal">Obiettivo</label>
+      <input id="goal" name="goal" type="text" placeholder="es. Forza">
+      <label for="focus">Focus</label>
+      <input id="focus" name="focus" type="text" placeholder="es. Squat · Panca · Stacco">
+      <label for="level">Livello</label>
+      <input id="level" name="level" type="text" placeholder="es. Intermedio">
+      <label for="glyph">Simbolo</label>
+      <input id="glyph" name="glyph" type="text" placeholder="💪">
+
+      <div class="pair-inputs">
+        <div>
+          <label for="totalWeeks">Settimane</label>
+          <input id="totalWeeks" name="totalWeeks" type="number" min="1" value="8">
+        </div>
+        <div>
+          <label for="daysPerWeek">Giorni/sett</label>
+          <input id="daysPerWeek" name="daysPerWeek" type="number" min="1" max="7" value="3">
+        </div>
+        <div>
+          <label for="sessionMin">Minuti</label>
+          <input id="sessionMin" name="sessionMin" type="number" min="10" value="60">
+        </div>
+      </div>
+
+      <button type="submit" class="btn">Crea</button>
+    </form>
+  </div>
+</div>
+{{end}}

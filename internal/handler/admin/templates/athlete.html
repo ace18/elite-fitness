@@ -1,0 +1,210 @@
+{{define "title"}}{{.Athlete.Display}}{{end}}
+
+{{define "content"}}
+<p class="crumb"><a href="{{.URL}}/">← Atleti</a></p>
+
+<div class="head">
+  <div class="who-big">
+    <span class="dot big">{{iniziali .Athlete.Name .Athlete.Email}}</span>
+    <div>
+      <h1>{{.Athlete.Display}}</h1>
+      <p class="muted">{{.Athlete.Email}} · iscritto il {{data .Athlete.CreatedAt}}</p>
+    </div>
+  </div>
+</div>
+
+{{if .Athlete.Stale .StaleDays}}
+  <p class="banner warn-banner">
+    Non si allena da {{quando .Athlete.LastSessionAt}}.
+  </p>
+{{end}}
+
+<div class="cols">
+  <div class="col">
+
+    {{if .Program}}
+    <div class="card">
+      <h2>Programma</h2>
+      <p class="big">{{.Program.Name}}</p>
+      <dl class="pairs">
+        <div><dt>Settimana</dt><dd>{{.Program.CurrentWeek}} di {{.Program.TotalWeeks}}</dd></div>
+        <div><dt>Sedute a settimana</dt><dd>{{.Program.DaysPerWeek}}</dd></div>
+        <div><dt>Livello</dt><dd>{{livello .Program.Level}}</dd></div>
+        <div><dt>Iniziato</dt><dd>{{data .Program.StartedAt}}</dd></div>
+        {{if .Program.OneRMKg}}
+        <div><dt>Massimale di partenza</dt><dd>{{kg .Program.OneRMKg}}</dd></div>
+        {{end}}
+        <div>
+          <dt>Scelto da</dt>
+          <dd>
+            {{if .Program.AssignedByCoach}}
+              {{.Program.AssignedByEmail}}
+            {{else}}
+              <span class="muted">l'atleta</span>
+            {{end}}
+          </dd>
+        </div>
+      </dl>
+      <!-- Barra di avanzamento senza JavaScript: la larghezza è già nota qui. -->
+      <div class="bar"><span style="width:{{.ProgressPct}}%"></span></div>
+    </div>
+    {{else}}
+    <div class="card">
+      <h2>Programma</h2>
+      <p class="muted">Nessun programma attivo.</p>
+    </div>
+    {{end}}
+
+    {{if .Templates}}
+    <form class="card" method="post" action="{{.URL}}/atleti/{{.Athlete.ID}}/programma">
+      <h2>{{if .Program}}Cambia programma{{else}}Assegna un programma{{end}}</h2>
+
+      {{if .Program}}
+      <!-- Detto per esteso invece che con una finestrella di conferma: quello
+           che si perde non è il programma ma la posizione dentro il programma,
+           e un "sei sicuro?" non lo direbbe. -->
+      <p class="warn-note">
+        Sostituisce <b>{{.Program.Name}}</b>, in corso alla settimana
+        {{.Program.CurrentWeek}} di {{.Program.TotalWeeks}}.
+        Il nuovo programma riparte dalla settimana 1; gli allenamenti già
+        registrati restano nello storico.
+      </p>
+      {{end}}
+
+      <input type="hidden" name="_csrf" value="{{.CSRF}}">
+
+      <label for="templateId">Programma</label>
+      <select id="templateId" name="templateId" required>
+        <option value="">Scegli…</option>
+        {{range .Templates}}
+        <option value="{{.ID}}">
+          {{.Name}} — {{.TotalWeeks}} settimane, {{.DaysPerWeek}}×/sett, {{livello .Level}}
+          {{- if .MinOneRM}} · richiede massimale {{num .MinOneRM}}–{{num .MaxOneRM}} kg
+          {{- else if .Prescribes}} · richiede il massimale{{end}}
+        </option>
+        {{end}}
+      </select>
+
+      <label for="oneRm">Massimale (kg)</label>
+      <input id="oneRm" name="oneRm" type="text" inputmode="decimal" placeholder="es. 162,5">
+      <p class="muted small hint">
+        Serve solo ai programmi a carico prescritto — quelli segnalati qui sopra.
+        Per tutti gli altri lascia vuoto: i carichi li propone lo storico dell'atleta.
+      </p>
+
+      <button type="submit" class="btn">
+        {{if .Program}}Sostituisci il programma{{else}}Assegna{{end}}
+      </button>
+    </form>
+    {{end}}
+
+    {{with .Metrics}}
+    <div class="card">
+      <h2>Andamento</h2>
+      <div class="stats">
+        <div class="stat">
+          <span class="lbl">Serie di allenamenti</span>
+          <span class="val">{{.Streak}}<em>giorni</em></span>
+        </div>
+        <div class="stat">
+          <span class="lbl">Questa settimana</span>
+          <span class="val">{{.WeekSessions}}{{if .WeekGoal}}<em>/{{.WeekGoal}}</em>{{end}}</span>
+        </div>
+        <div class="stat">
+          <span class="lbl">Allenamenti totali</span>
+          <span class="val">{{.TotalSessions}}</span>
+        </div>
+      </div>
+
+      {{if .BodyWeight.Value}}
+      <div class="metric">
+        <div>
+          <span class="lbl">Peso corporeo</span>
+          <span class="val">{{num .BodyWeight.Value}}<em>{{.BodyWeight.Unit}}</em></span>
+          <!-- Questo Delta è una differenza in chili, non una percentuale. -->
+          <span class="chg {{if lt .BodyWeight.Delta 0.0}}down{{else if gt .BodyWeight.Delta 0.0}}up{{end}}">{{delta .BodyWeight.Delta}}</span>
+        </div>
+        {{if haSerie .BodyWeight.Series}}<div class="sparkwrap">{{sparkline .BodyWeight.Series}}</div>{{end}}
+      </div>
+      {{end}}
+
+      {{if .Est1RM.Value}}
+      <div class="metric">
+        <div>
+          <span class="lbl">Massimale stimato · {{.Est1RM.Lift}}</span>
+          <span class="val">{{num .Est1RM.Value}}<em>{{.Est1RM.Unit}}</em></span>
+        </div>
+        {{if haSerie .Est1RM.Series}}<div class="sparkwrap">{{sparkline .Est1RM.Series}}</div>{{end}}
+      </div>
+      {{end}}
+
+      {{if .Volume.Value}}
+      <div class="metric">
+        <div>
+          <span class="lbl">Volume settimanale</span>
+          <!-- Value arriva già in migliaia di chili (unit "k kg"), quindi la `t`
+               è scritta qui e non passa dal filtro `volume`. -->
+          <span class="val">{{num .Volume.Value}}<em>t</em></span>
+          <!-- Questo Delta invece è una percentuale sulla settimana prima. -->
+          <span class="chg {{if gt .Volume.Delta 0.0}}up{{else if lt .Volume.Delta 0.0}}down{{end}}">{{deltaPct .Volume.Delta}}</span>
+        </div>
+        {{if haSerie .Volume.Series}}<div class="sparkwrap">{{sparkline .Volume.Series}}</div>{{end}}
+      </div>
+      {{end}}
+    </div>
+
+    {{if .PRs}}
+    <div class="card">
+      <h2>Record personali</h2>
+      <ul class="prs">
+        {{range .PRs}}
+        <li>
+          <span class="lift">{{.Lift}}</span>
+          <span class="pr-val">{{num .Weight}} kg × {{.Reps}}</span>
+          <span class="muted">{{data .AchievedAt}}</span>
+          {{if .Fresh}}<span class="tag">nuovo</span>{{end}}
+        </li>
+        {{end}}
+      </ul>
+    </div>
+    {{end}}
+    {{end}}
+
+  </div>
+
+  <div class="col">
+    <div class="card flush">
+      <h2 class="pad">Allenamenti</h2>
+      {{if not .Sessions}}
+        <p class="muted pad">Nessun allenamento registrato.</p>
+      {{else}}
+      <table class="grid">
+        <thead>
+          <tr>
+            <th>Allenamento</th>
+            <th class="n">Volume</th>
+            <th class="n">Serie</th>
+            <th class="n">RPE</th>
+            <th>Quando</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Sessions}}
+          <tr class="row" onclick="location='{{$.URL}}/atleti/{{$.Athlete.ID}}/sessioni/{{.ID}}'">
+            <td>
+              <a href="{{$.URL}}/atleti/{{$.Athlete.ID}}/sessioni/{{.ID}}"><b>{{.Name}}</b></a>
+              {{if .DurationMin}}<em class="muted">{{.DurationMin}} min</em>{{end}}
+            </td>
+            <td class="n">{{if .TotalVolume}}{{volume .TotalVolume}}{{else}}<span class="muted">—</span>{{end}}</td>
+            <td class="n">{{if .TotalSets}}{{.TotalSets}}{{else}}<span class="muted">—</span>{{end}}</td>
+            <td class="n">{{if .AvgRPE}}{{num .AvgRPE}}{{else}}<span class="muted">—</span>{{end}}</td>
+            <td><span title="{{dataOra .CompletedAt}}">{{quando .CompletedAt}}</span></td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+      {{end}}
+    </div>
+  </div>
+</div>
+{{end}}

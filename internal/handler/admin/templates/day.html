@@ -1,0 +1,173 @@
+{{define "title"}}{{.Day.Name}}{{end}}
+
+{{define "content"}}
+<p class="crumb">
+  <a href="{{.URL}}/programmi">Programmi</a> ·
+  <a href="{{.URL}}/programmi/{{.Template.ID}}">{{.Template.Name}}</a>
+</p>
+
+<div class="head">
+  <div>
+    <h1>{{.Day.Name}}</h1>
+    <p class="muted">
+      {{giorno .Day.DayOfWeek}} · dalla settimana {{.Day.WeekNumber}}
+      {{if .Day.Focus}}· {{.Day.Focus}}{{end}}
+    </p>
+  </div>
+</div>
+
+<div class="cols form-right">
+  <div class="col">
+    <div class="card flush">
+      <h2 class="pad">Esercizi</h2>
+      {{if not .Day.Exercises}}
+        <p class="muted pad">Nessun esercizio in questo giorno.</p>
+      {{else}}
+      <table class="grid">
+        <thead>
+          <tr>
+            <th>Esercizio</th>
+            <th class="n">Serie × rip</th>
+            <th class="n">Recupero</th>
+            <th class="n">Carico</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Day.Exercises}}
+          <tr>
+            <td>
+              <b>{{.ExerciseName}}</b>
+              <em class="muted">{{.MuscleGroup}}</em>
+            </td>
+            <td class="n">{{.Sets}} × {{.TargetReps}}</td>
+            <td class="n">{{.RestSeconds}}s</td>
+            <td class="n">
+              {{if .Prescribed}}
+                {{pct .LoadPct}}%
+                {{with .LoadOffsetKg}}<span class="muted">{{delta .}} kg</span>{{end}}
+              {{else}}
+                <span class="muted">dallo storico</span>
+              {{end}}
+            </td>
+            <td class="n nowrap">
+              <form class="inline" method="post"
+                    action="{{$.URL}}/programmi/{{$.Template.ID}}/giorni/{{$.Day.ID}}/esercizi/{{.ID}}/sposta">
+                <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+                <button type="submit" name="verso" value="su" class="link arrow" title="Sposta su">↑</button>
+                <button type="submit" name="verso" value="giu" class="link arrow" title="Sposta giù">↓</button>
+              </form>
+              <a class="link" href="{{$.URL}}/programmi/{{$.Template.ID}}/giorni/{{$.Day.ID}}?riga={{.ID}}">Modifica</a>
+              <form class="inline" method="post"
+                    action="{{$.URL}}/programmi/{{$.Template.ID}}/giorni/{{$.Day.ID}}/esercizi/{{.ID}}/elimina">
+                <input type="hidden" name="_csrf" value="{{$.CSRF}}">
+                <button type="submit" class="link danger">Togli</button>
+              </form>
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+      {{end}}
+    </div>
+
+    {{/* Un form solo, che cambia bersaglio: aggiunge una riga nuova, oppure
+         modifica quella aperta con ?riga=. I campi sono gli stessi, e tenerne
+         due copie significherebbe correggerli sempre in due posti. */}}
+    <form class="card" method="post"
+          action="{{.URL}}/programmi/{{.Template.ID}}/giorni/{{.Day.ID}}/esercizi{{with .Editing}}/{{.ID}}{{end}}">
+      <h2>{{if .Editing}}Modifica riga{{else}}Aggiungi un esercizio{{end}}</h2>
+      <input type="hidden" name="_csrf" value="{{.CSRF}}">
+
+      <label for="exerciseId">Esercizio</label>
+      <select id="exerciseId" name="exerciseId" required>
+        <option value="">Scegli…</option>
+        {{$sel := ""}}{{with .Editing}}{{$sel = .ExerciseID}}{{end}}
+        {{range .Exercises}}
+        <option value="{{.ID}}" {{if eq .ID $sel}}selected{{end}}>{{.Name}} — {{.MuscleGroup}}</option>
+        {{end}}
+      </select>
+
+      <div class="pair-inputs">
+        <div>
+          <label for="sets">Serie</label>
+          <input id="sets" name="sets" type="number" min="1" value="{{with .Editing}}{{.Sets}}{{else}}3{{end}}">
+        </div>
+        <div>
+          <label for="targetReps">Ripetizioni</label>
+          <input id="targetReps" name="targetReps" type="number" min="1" value="{{with .Editing}}{{.TargetReps}}{{else}}8{{end}}">
+        </div>
+        <div>
+          <label for="restSeconds">Recupero (s)</label>
+          <input id="restSeconds" name="restSeconds" type="number" min="0" value="{{with .Editing}}{{.RestSeconds}}{{else}}90{{end}}">
+        </div>
+      </div>
+
+      <label>Carico prescritto</label>
+      <div class="pair-inputs">
+        <div>
+          <input name="loadPct" type="text" inputmode="decimal" placeholder="% del massimale"
+                 value="{{with .Editing}}{{pct .LoadPct}}{{end}}">
+        </div>
+        <div>
+          <input name="loadOffsetKg" type="text" inputmode="decimal" placeholder="± kg"
+                 value="{{with .Editing}}{{with .LoadOffsetKg}}{{num .}}{{end}}{{end}}">
+        </div>
+      </div>
+      <p class="muted small hint">
+        Lascia vuoto e il peso lo propone lo storico dell'atleta, seguendo l'RPE.
+        Riempiendolo, il carico è deciso dal programma: si scrive 65 per il 65%
+        del massimale, e lo scarto si somma dopo (65 e +5 danno 65% + 5 kg).
+      </p>
+
+      <button type="submit" class="btn">{{if .Editing}}Salva{{else}}Aggiungi{{end}}</button>
+      {{if .Editing}}
+      <p class="muted small hint">
+        <a class="link" href="{{.URL}}/programmi/{{.Template.ID}}/giorni/{{.Day.ID}}">Annulla</a>
+      </p>
+      {{end}}
+    </form>
+  </div>
+
+  <div class="col narrow">
+    <form class="card" method="post" action="{{.URL}}/programmi/{{.Template.ID}}/giorni/{{.Day.ID}}">
+      <h2>Dati del giorno</h2>
+      <input type="hidden" name="_csrf" value="{{.CSRF}}">
+
+      <label for="name">Nome</label>
+      <input id="name" name="name" type="text" required value="{{.Day.Name}}">
+      <label for="focus">Focus</label>
+      <input id="focus" name="focus" type="text" value="{{.Day.Focus}}">
+
+      <div class="pair-inputs">
+        <div>
+          <label for="weekNumber">Dalla settimana</label>
+          <input id="weekNumber" name="weekNumber" type="number" min="1"
+                 max="{{.Template.TotalWeeks}}" value="{{.Day.WeekNumber}}">
+        </div>
+        <div>
+          <label for="dayOfWeek">Giorno</label>
+          <select id="dayOfWeek" name="dayOfWeek">
+            {{$d := .Day.DayOfWeek}}
+            {{range giorni}}<option value="{{.}}" {{if eq . $d}}selected{{end}}>{{giorno .}}</option>{{end}}
+          </select>
+        </div>
+      </div>
+
+      <button type="submit" class="btn">Salva</button>
+    </form>
+
+    <div class="card">
+      <h2>Elimina</h2>
+      <p class="muted">
+        Toglie il giorno e i suoi esercizi da questo programma. I programmi già
+        assegnati non cambiano.
+      </p>
+      <form method="post" action="{{.URL}}/programmi/{{.Template.ID}}/giorni/{{.Day.ID}}/elimina">
+        <input type="hidden" name="_csrf" value="{{.CSRF}}">
+        <button type="submit" class="link danger">Elimina il giorno</button>
+      </form>
+    </div>
+  </div>
+</div>
+{{end}}

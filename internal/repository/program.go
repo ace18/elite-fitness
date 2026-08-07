@@ -33,11 +33,22 @@ func NewProgramRepo(db *pgxpool.Pool) *ProgramRepo { return &ProgramRepo{db: db}
 
 func (r *ProgramRepo) DB() *pgxpool.Pool { return r.db }
 
+// GetTemplates — il catalogo assegnabile: quello che vede l'atleta nella
+// schermata dei piani e quello che il pannello offre nel menù di assegnazione.
+//
+// Le archiviate restano fuori: sono template che l'allenatore ha ritirato, e il
+// senso del ritiro è proprio che non se ne comincino di nuove. I programmi già
+// in corso non passano di qui — sono copie — quindi non si rompe niente.
 func (r *ProgramRepo) GetTemplates(ctx context.Context) ([]model.PlanTemplate, error) {
 	rows, err := r.db.Query(ctx,
-		`SELECT id, name, goal, focus, level, days_per_week, session_min, total_weeks, glyph, tag,
-		        min_one_rm_kg, max_one_rm_kg
-		 FROM plan_templates ORDER BY name`)
+		`SELECT t.id, t.name, t.goal, t.focus, t.level, t.days_per_week, t.session_min,
+		        t.total_weeks, t.glyph, t.tag, t.min_one_rm_kg, t.max_one_rm_kg,
+		        EXISTS (
+		          SELECT 1 FROM template_workouts w
+		          JOIN template_workout_exercises twe ON twe.template_workout_id = w.id
+		          WHERE w.template_id = t.id AND twe.load_pct IS NOT NULL
+		        )
+		 FROM plan_templates t WHERE t.archived_at IS NULL ORDER BY t.name`)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +60,7 @@ func (r *ProgramRepo) GetTemplates(ctx context.Context) ([]model.PlanTemplate, e
 		var t model.PlanTemplate
 		if err := rows.Scan(&t.ID, &t.Name, &t.Goal, &t.Focus, &t.Level,
 			&t.DaysPerWeek, &t.SessionMin, &t.TotalWeeks, &t.Glyph, &t.Tag,
-			&t.MinOneRM, &t.MaxOneRM); err != nil {
+			&t.MinOneRM, &t.MaxOneRM, &t.Prescribes); err != nil {
 			return nil, err
 		}
 		templates = append(templates, t)
@@ -59,14 +70,20 @@ func (r *ProgramRepo) GetTemplates(ctx context.Context) ([]model.PlanTemplate, e
 
 func (r *ProgramRepo) GetActiveProgram(ctx context.Context, userID string) (*model.UserProgram, error) {
 	p := &model.UserProgram{}
+	// Nessun join su admins: l'indirizzo è già sulla riga, scritto al momento
+	// dell'assegnazione. Questa query sta sul percorso caldo dell'app — la
+	// chiama ogni apertura della schermata di allenamento — e un join in più per
+	// un dato che serve solo al pannello lo pagherebbero tutti gli atleti.
 	err := r.db.QueryRow(ctx,
 		`SELECT id, user_id, template_id, name, goal, level, days_per_week,
-		        total_weeks, is_active, started_at, COALESCE(one_rm_kg, 0)
+		        total_weeks, is_active, started_at, COALESCE(one_rm_kg, 0),
+		        assigned_by, assigned_by_email
 		 FROM user_programs WHERE user_id = $1 AND is_active = TRUE
 		 ORDER BY started_at DESC LIMIT 1`,
 		userID,
 	).Scan(&p.ID, &p.UserID, &p.TemplateID, &p.Name, &p.Goal, &p.Level,
-		&p.DaysPerWeek, &p.TotalWeeks, &p.IsActive, &p.StartedAt, &p.OneRMKg)
+		&p.DaysPerWeek, &p.TotalWeeks, &p.IsActive, &p.StartedAt, &p.OneRMKg,
+		&p.AssignedBy, &p.AssignedByEmail)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +121,33 @@ func (r *ProgramRepo) DeactivateAll(ctx context.Context, userID string) error {
 // ErrOneRMOutOfRange: il massimale è fuori dalla finestra della template.
 var ErrOneRMOutOfRange = errors.New("massimale fuori dalla finestra prevista dalla template")
 
+// CreateFromTemplate — l'atleta si sceglie il programma da sé. assigned_by
+// resta NULL, che è ciò che distingue questo caso da quello qui sotto.
 func (r *ProgramRepo) CreateFromTemplate(ctx context.Context, userID string, t model.PlanTemplate, oneRM float64) (string, error) {
+	return r.createFromTemplate(ctx, userID, t, oneRM, nil)
+}
+
+// AssignFromTemplate — un amministratore assegna il programma dal pannello.
+//
+// Due metodi invece di un parametro in più su uno solo: l'attribuzione non è un
+// dettaglio che un chiamante possa dimenticare, e con una firma sola tutti i
+// punti che non c'entrano (i test, la scelta dell'atleta) si riempirebbero di
+// `nil` finché uno di quei nil non finisce, per distrazione, dove serviva un id.
+// Così i due gesti si chiamano in modo diverso perché sono diversi.
+//
+// Prende l'amministratore intero e non il solo id perché ne registra anche
+// l'indirizzo: vedi la migrazione 013 sul perché il solo riferimento non basta.
+func (r *ProgramRepo) AssignFromTemplate(ctx context.Context, userID string, t model.PlanTemplate, oneRM float64, by *model.Admin) (string, error) {
+	return r.createFromTemplate(ctx, userID, t, oneRM, by)
+}
+
+func (r *ProgramRepo) createFromTemplate(ctx context.Context, userID string, t model.PlanTemplate, oneRM float64, by *model.Admin) (string, error) {
+	// Sono due parametri distinti nella INSERT, quindi vanno srotolati qui: un
+	// *model.Admin nil deve diventare due NULL, non un id nullo e un'email vuota.
+	var assignedBy, assignedByEmail *string
+	if by != nil {
+		assignedBy, assignedByEmail = &by.ID, &by.Email
+	}
 	// Le template a carico prescritto valgono solo dentro la loro finestra: gli
 	// incrementi sono in chili pieni e non si riscalano, quindi fuori finestra
 	// le ultime settimane cadrebbero a percentuali che non stanno in piedi.
@@ -128,9 +171,20 @@ func (r *ProgramRepo) CreateFromTemplate(ctx context.Context, userID string, t m
 
 	var programID string
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO user_programs (user_id, template_id, name, goal, level, days_per_week, total_weeks, one_rm_kg)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7, NULLIF($8, 0)) RETURNING id`,
+		// $8::numeric non è decorativo. Senza il cast, Postgres deve dedurre il
+		// tipo del parametro dentro NULLIF($8, 0) e lo risolve guardando l'altro
+		// operando: lo zero è un letterale intero, quindi $8 diventa un intero e
+		// un massimale di 162,5 kg viene troncato a 162 — in silenzio, perché
+		// 162 in una colonna NUMERIC(6,2) è un valore perfettamente legittimo.
+		// La schermata del piano arrotonda i suggerimenti al mezzo chilo, quindi
+		// i mezzi chili sono esattamente ciò che gli utenti inseriscono; e da un
+		// massimale sbagliato esce sbagliato ogni carico prescritto del ciclo,
+		// che si calcolano tutti come load_pct × 1RM + offset.
+		`INSERT INTO user_programs (user_id, template_id, name, goal, level, days_per_week, total_weeks,
+		                           one_rm_kg, assigned_by, assigned_by_email)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7, NULLIF($8::numeric, 0), $9, $10) RETURNING id`,
 		userID, t.ID, t.Name, t.Goal, t.Level, t.DaysPerWeek, t.TotalWeeks, oneRM,
+		assignedBy, assignedByEmail,
 	).Scan(&programID); err != nil {
 		return "", err
 	}

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Il pannello non è né indicizzabile né condivisibile: dietro c'è la scheda
+     di persone reali. -->
+<meta name="robots" content="noindex, nofollow">
+<title>{{block "title" .}}{{.Title}}{{end}} · ELITE</title>
+<link rel="stylesheet" href="{{.URL}}/statico/admin.css">
+</head>
+<body>
+
+{{if .Admin}}
+<header class="topbar">
+  <div class="wrap topbar-in">
+    <a class="brand" href="{{.URL}}/">ELITE<span>pannello</span></a>
+    <nav class="nav">
+      <a href="{{.URL}}/" {{if eq .Nav "atleti"}}class="on"{{end}}>Atleti</a>
+      <a href="{{.URL}}/programmi" {{if eq .Nav "programmi"}}class="on"{{end}}>Programmi</a>
+      <a href="{{.URL}}/esercizi" {{if eq .Nav "esercizi"}}class="on"{{end}}>Esercizi</a>
+      <a href="{{.URL}}/amministratori" {{if eq .Nav "amministratori"}}class="on"{{end}}>Amministratori</a>
+    </nav>
+    <form class="signout" method="post" action="{{.URL}}/esci">
+      <input type="hidden" name="_csrf" value="{{.CSRF}}">
+      <span class="who">{{.Admin.Display}}</span>
+      <button type="submit" class="link">Esci</button>
+    </form>
+  </div>
+</header>
+{{end}}
+
+<main class="wrap main">
+  {{if .Flash}}<p class="banner ok">{{.Flash}}</p>{{end}}
+  {{if .Problem}}<p class="banner bad">{{.Problem}}</p>{{end}}
+  {{block "content" .}}{{end}}
+</main>
+
+</body>
+</html>

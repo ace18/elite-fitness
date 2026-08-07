@@ -1,0 +1,76 @@
+{{define "title"}}{{.Session.Name}}{{end}}
+
+{{define "content"}}
+<p class="crumb">
+  <a href="{{.URL}}/">Atleti</a> ·
+  <a href="{{.URL}}/atleti/{{.Athlete.ID}}">{{.Athlete.Display}}</a>
+</p>
+
+<div class="head">
+  <div>
+    <h1>{{.Session.Name}}</h1>
+    <p class="muted">{{dataOra .Session.CompletedAt}}</p>
+  </div>
+</div>
+
+<div class="card">
+  <div class="stats">
+    <div class="stat">
+      <span class="lbl">Volume</span>
+      <span class="val">{{volume .Session.TotalVolume}}</span>
+    </div>
+    <div class="stat">
+      <span class="lbl">Serie</span>
+      <span class="val">{{if .Session.TotalSets}}{{.Session.TotalSets}}{{else}}—{{end}}</span>
+    </div>
+    <div class="stat">
+      <span class="lbl">Durata</span>
+      <span class="val">{{if .Session.DurationMin}}{{.Session.DurationMin}}<em>min</em>{{else}}—{{end}}</span>
+    </div>
+    <div class="stat">
+      <span class="lbl">RPE medio</span>
+      <span class="val">{{num .Session.AvgRPE}}</span>
+    </div>
+    <div class="stat">
+      <span class="lbl">RPE seduta</span>
+      <span class="val">{{if .Session.SessionRPE}}{{.Session.SessionRPE}}{{else}}—{{end}}</span>
+    </div>
+  </div>
+</div>
+
+<div class="card flush">
+  <h2 class="pad">Serie</h2>
+  {{if not .Session.Sets}}
+    <p class="muted pad">Nessuna serie registrata per questo allenamento.</p>
+  {{else}}
+  <table class="grid">
+    <thead>
+      <tr>
+        <th>Esercizio</th>
+        <th class="n">Serie</th>
+        <th class="n">Carico</th>
+        <th class="n">Ripetizioni</th>
+        <th class="n">RPE</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Session.Sets}}
+      <tr>
+        <td>{{.ExerciseName}}</td>
+        <td class="n">{{.SetNumber}}</td>
+        <td class="n">{{if .Weight}}{{num .Weight}} kg{{else}}<span class="muted">—</span>{{end}}</td>
+        <td class="n">{{.Reps}}</td>
+        <td class="n">{{num .RPE}}</td>
+        <td>{{if .IsPR}}<span class="tag">record</span>{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  <p class="muted pad small">
+    Le serie sono raggruppate per esercizio: il database non conserva l'ordine
+    in cui si sono susseguite nella seduta.
+  </p>
+  {{end}}
+</div>
+{{end}}

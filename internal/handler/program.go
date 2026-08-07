@@ -119,6 +119,21 @@ func (h *ProgramHandler) SetProgram(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Senza massimale, una template che ne ha bisogno produce un programma con
+	// tutti i carichi a NULL: CreateFromTemplate mette NULL quando il massimale
+	// è zero, quindi non fallisce niente e l'atleta si ritrova semplicemente la
+	// scheda senza pesi. Un rifiuto qui è l'unico modo di accorgersene.
+	//
+	// Le due condizioni non si sovrappongono. La finestra dice "questa template
+	// vale solo fra 145 e 170 kg"; Prescribes dice "qualche esercizio calcola il
+	// carico dal massimale". I cicli di squat hanno entrambe, ma una template
+	// scritta dal pannello può avere solo la seconda — ed è proprio quella che
+	// passerebbe inosservata controllando la sola finestra.
+	if (found.MinOneRM != nil || found.Prescribes) && body.OneRMKg <= 0 {
+		jsonError(w, ErrOneRMRequired, http.StatusBadRequest)
+		return
+	}
+
 	// Crea il programma e ci copia dentro i workout della template.
 	programID, err := h.programs.CreateFromTemplate(r.Context(), userID, *found, body.OneRMKg)
 	if err != nil {

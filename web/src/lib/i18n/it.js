@@ -166,10 +166,15 @@ export const it = {
     backendDown: 'Server irraggiungibile.',
     startFailed: 'Impossibile avviare il programma: {msg}',
     oneRmLabel: 'IL TUO MASSIMALE',
+    // Parla di back squat perché i cicli con una finestra di massimali sono
+    // quelli di squat. Un programma scritto dall'allenatore può prescrivere i
+    // carichi su tutt'altro, e per quello c'è oneRmHelpGeneric.
     oneRmHelp: 'Questo ciclo prescrive il carico di ogni seduta, quindi gli serve il tuo massimale di back squat.',
+    oneRmHelpGeneric: 'Questo programma calcola i carichi di alcune sedute a partire dal tuo massimale.',
     oneRmDay1: 'Sett. 1 · Giorno 1',
     oneRmDay2: 'Sett. 1 · Giorno 2',
     oneRmRange: 'Questo ciclo è tarato su un massimale fra {min} e {max} kg.',
+    oneRmRequired: 'Inserisci il tuo massimale per iniziare questo programma.',
     prescribedLoads: 'Ogni seduta ha un carico prescritto, calcolato dal tuo massimale.',
     generateFailed: 'Creazione della scheda non riuscita: {msg}',
     q: {

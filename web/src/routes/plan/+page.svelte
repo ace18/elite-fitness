@@ -85,16 +85,40 @@
   // dal massimale. Senza, il backend rifiuta la creazione — quindi il campo
   // compare solo dove serve davvero, e non appesantisce tutte le altre.
   let oneRm = $state(0);
-  let needsOneRm = $derived(plan?.minOneRm != null && plan?.maxOneRm != null);
+
+  // Due cose diverse, e servono entrambe.
+  //
+  // `hasWindow` è la finestra dichiarata dalla template: «vale solo fra 145 e
+  // 170 kg». `prescribesLoads` dice che almeno un esercizio ricava il carico
+  // dal massimale — che è la ragione per cui il massimale serve.
+  //
+  // I due cicli di squat hanno l'una e l'altro, ed è per questo che finora
+  // bastava guardare la finestra. Ma una template scritta dal pannello può
+  // prescrivere una percentuale senza dichiarare nessuna finestra: chiedendo il
+  // massimale solo in base alla finestra, quella verrebbe iniziata senza, e il
+  // backend materializza NULL su tutti i carichi quando il massimale è zero.
+  // Nessun errore, nessun peso: la scheda arriva vuota.
+  let hasWindow = $derived(plan?.minOneRm != null && plan?.maxOneRm != null);
+  let needsOneRm = $derived(hasWindow || plan?.prescribesLoads === true);
+
+  // Dentro la finestra quando c'è; comunque diverso da zero, se no il backend
+  // rifiuta (one_rm_required) dopo aver lasciato premere il pulsante.
   let oneRmOk = $derived(
-    !needsOneRm || (oneRm >= plan.minOneRm && oneRm <= plan.maxOneRm)
+    !needsOneRm ||
+      (oneRm > 0 && (!hasWindow || (oneRm >= plan.minOneRm && oneRm <= plan.maxOneRm)))
   );
-  // I carichi della prima settimana: sono il 65% e il 70% del massimale, e
-  // vederli subito è il modo più rapido per accorgersi di aver digitato un
-  // numero sbagliato prima di iniziare otto settimane di programma.
+
+  // I carichi della prima settimana, per accorgersi di un massimale digitato
+  // male prima di cominciare otto settimane di programma.
+  //
+  // Solo per le template con una finestra, cioè i due cicli di squat: il 65% e
+  // il 70% sono le loro percentuali, non una regola generale. Di una template
+  // qualunque il client non sa che percentuali usi — stanno nelle sue righe, in
+  // database — e mostrare comunque questi numeri vorrebbe dire mostrarne di
+  // sbagliati, che è peggio che non mostrarne.
   const halfKg = (n) => Math.round(n * 2) / 2;
   let week1 = $derived(
-    needsOneRm ? { d1: halfKg(oneRm * 0.65), d2: halfKg(oneRm * 0.7) } : null
+    hasWindow ? { d1: halfKg(oneRm * 0.65), d2: halfKg(oneRm * 0.7) } : null
   );
 
   const startPlan = async () => {
@@ -106,12 +130,18 @@
       await applyPlan(); // re-read program + today's workout from the server
       close();
     } catch (e) {
+      // one_rm_out_of_range può arrivare solo da una template con finestra: è
+      // quella a dichiararla. one_rm_required invece arriva da qualunque
+      // template a carico prescritto, e lì minOneRm non c'è — interpolarlo
+      // stamperebbe «fra undefined e undefined».
       error =
         e.status === 0
           ? $t('plan.backendDown')
-          : e.code === 'one_rm_out_of_range'
+          : e.code === 'one_rm_out_of_range' && hasWindow
             ? $t('plan.oneRmRange', { min: plan.minOneRm, max: plan.maxOneRm })
-            : $t('plan.startFailed', { msg: e.message });
+            : e.code === 'one_rm_required' || e.code === 'one_rm_out_of_range'
+              ? $t('plan.oneRmRequired')
+              : $t('plan.startFailed', { msg: e.message });
       saving = false;
     }
   };
@@ -250,12 +280,12 @@
         <div class="card" style="padding:16px 18px; display:flex; flex-direction:column; gap:14px;">
           <div>
             <div class="t-label" style="color:var(--brand);">{$t('plan.oneRmLabel')}</div>
-            <div class="t-sub" style="font-size:13px; margin-top:4px;">{$t('plan.oneRmHelp')}</div>
+            <div class="t-sub" style="font-size:13px; margin-top:4px;">{hasWindow ? $t('plan.oneRmHelp') : $t('plan.oneRmHelpGeneric')}</div>
           </div>
 
           <Stepper value={oneRm} onChange={(v) => (oneRm = v)} step={2.5} min={0} unit="kg" big />
 
-          {#if oneRmOk}
+          {#if oneRmOk && week1}
             <!-- I carichi della settimana 1, per confermare a colpo d'occhio
                  che il massimale digitato è quello giusto. -->
             <div class="row" style="gap:8px; justify-content:center; flex-wrap:wrap;">
@@ -263,9 +293,16 @@
                 <span style="font-size:11.5px; font-weight:700; color:var(--ink2); background:#F1F3F5; padding:5px 10px; border-radius:8px; white-space:nowrap;">{label} · <span class="t-num">{$num(kg)}</span> kg</span>
               {/each}
             </div>
-          {:else}
+          {:else if !oneRmOk}
             <p class="t-sub" style="font-size:12.5px; color:var(--down, #d1495b); text-align:center; margin:0;">
-              {$t('plan.oneRmRange', { min: plan.minOneRm, max: plan.maxOneRm })}
+              <!-- Fuori finestra e non ancora inserito sono due problemi
+                   diversi, e dirli con la stessa frase manderebbe a cercare un
+                   intervallo che per questa template non esiste. -->
+              {#if hasWindow}
+                {$t('plan.oneRmRange', { min: plan.minOneRm, max: plan.maxOneRm })}
+              {:else}
+                {$t('plan.oneRmRequired')}
+              {/if}
             </p>
           {/if}
         </div>

@@ -18,6 +18,20 @@ type PlanTemplate struct {
 	// incrementi sono assoluti e quindi non si adattano fuori finestra.
 	MinOneRM *float64 `json:"minOneRm,omitempty"`
 	MaxOneRM *float64 `json:"maxOneRm,omitempty"`
+
+	// Prescribes dice se almeno un esercizio della template calcola il carico
+	// dal massimale.
+	//
+	// Non è la stessa cosa di avere una finestra di massimali, ed è la
+	// distinzione che conta al momento di assegnare: la finestra dice "questa
+	// template vale solo fra 145 e 170 kg", Prescribes dice "senza un massimale
+	// questa template non sa che pesi mettere". Un ciclo di squat ha entrambe,
+	// ma una template scritta a mano nel pannello può benissimo prescrivere una
+	// percentuale senza dichiarare nessuna finestra — e in quel caso, chiedendo
+	// il massimale solo in base alla finestra, l'atleta si ritroverebbe la
+	// scheda senza carichi (CreateFromTemplate lascia NULL quando il massimale
+	// è zero) senza che nessuno abbia visto un errore.
+	Prescribes bool `json:"prescribesLoads,omitempty"`
 }
 
 type UserProgram struct {
@@ -33,10 +47,34 @@ type UserProgram struct {
 	IsActive    bool    `json:"isActive"`
 	// OneRMKg è il massimale su cui sono stati calcolati i carichi, per i
 	// programmi che li prescrivono. Zero per tutti gli altri.
-	OneRMKg   float64        `json:"oneRmKg,omitempty"`
+	OneRMKg float64 `json:"oneRmKg,omitempty"`
+
+	// AssignedBy/AssignedByEmail — l'amministratore che ha assegnato il
+	// programma dal pannello. Entrambi nil se l'atleta se l'è scelto da sé.
+	//
+	// Sono due perché servono a due cose: AssignedBy è il collegamento vivo alla
+	// riga in `admins` e va a NULL se quella riga sparisce; AssignedByEmail è
+	// l'indirizzo registrato al momento dell'assegnazione e resta comunque
+	// (vedi migrazione 013).
+	//
+	// Fuori dal JSON: questa struct è anche la risposta di /api/program, e
+	// l'indirizzo di chi amministra l'installazione non ha motivo di arrivare
+	// sul telefono di ogni iscritto. Il pannello legge i campi direttamente.
+	AssignedBy      *string `json:"-"`
+	AssignedByEmail *string `json:"-"`
+
 	StartedAt time.Time      `json:"startedAt"`
 	Schedule  []ScheduleItem `json:"schedule,omitempty"`
 }
+
+// AssignedByCoach dice se il programma è stato messo lì da un amministratore
+// invece che scelto dall'atleta.
+//
+// Guarda l'email e non l'id: l'id si azzera se l'amministratore viene cancellato
+// dal database, e siccome NULL è anche il valore che significa "scelto
+// dall'atleta", basarsi su quello farebbe cambiare risposta a una domanda sul
+// passato — il programma risulterebbe scelto da chi non l'ha scelto.
+func (p *UserProgram) AssignedByCoach() bool { return p.AssignedByEmail != nil }
 
 // WeekAt calcola in che settimana del programma si è a una certa data.
 //
