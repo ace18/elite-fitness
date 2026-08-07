@@ -214,8 +214,13 @@ export const API = {
   getPlans() {
     return request('/api/plans');
   },
-  setProgram(templateId) {
-    return request('/api/program', { method: 'POST', body: { templateId } });
+  // oneRmKg serve solo alle template a carico prescritto (il ciclo di squat):
+  // il backend lo usa per calcolare i chili di ogni seduta e rifiuta un
+  // massimale fuori dalla finestra dichiarata dalla template.
+  setProgram(templateId, oneRmKg) {
+    const body = { templateId };
+    if (oneRmKg > 0) body.oneRmKg = oneRmKg;
+    return request('/api/program', { method: 'POST', body });
   },
   // { goal, level, days, length, notes } -> generated UserProgram.
   //

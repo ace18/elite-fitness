@@ -7,9 +7,11 @@
   import { applyPlan } from '$lib/stores.js';
   import { PLAN_QUESTIONS, BUILD_MSGS, recommendPlan, normalizePlan } from '$lib/plans.js';
   import { t } from '$lib/i18n/index.js';
+  import { num } from '$lib/format.js';
   import Screen from '$lib/components/ui/Screen.svelte';
   import Btn from '$lib/components/ui/Btn.svelte';
   import Ring from '$lib/components/ui/Ring.svelte';
+  import Stepper from '$lib/components/ui/Stepper.svelte';
 
   // The catalogue lives in the DB (plan_templates), not in plans.js — a
   // hardcoded copy would silently hide any template added by a migration.
@@ -49,6 +51,11 @@
   const pick = (key, v) => (ans = { ...ans, [key]: v });
   const choosePremade = (p) => {
     picked = normalizePlan(p);
+    // Parte dal centro della finestra: un valore già valido evita di aprire la
+    // schermata con il pulsante disabilitato e nessuna spiegazione.
+    if (p.minOneRm != null && p.maxOneRm != null) {
+      oneRm = halfKg((p.minOneRm + p.maxOneRm) / 2);
+    }
     phase = 'done';
   };
   const startCustom = () => {
@@ -73,16 +80,38 @@
   // "Start plan" doesn't try to create it a second time.
   let generated = $state(false);
 
+  // ---- massimale, per le template a carico prescritto --------------------
+  // Il ciclo di squat non autoregola: ogni seduta ha i suoi chili, calcolati
+  // dal massimale. Senza, il backend rifiuta la creazione — quindi il campo
+  // compare solo dove serve davvero, e non appesantisce tutte le altre.
+  let oneRm = $state(0);
+  let needsOneRm = $derived(plan?.minOneRm != null && plan?.maxOneRm != null);
+  let oneRmOk = $derived(
+    !needsOneRm || (oneRm >= plan.minOneRm && oneRm <= plan.maxOneRm)
+  );
+  // I carichi della prima settimana: sono il 65% e il 70% del massimale, e
+  // vederli subito è il modo più rapido per accorgersi di aver digitato un
+  // numero sbagliato prima di iniziare otto settimane di programma.
+  const halfKg = (n) => Math.round(n * 2) / 2;
+  let week1 = $derived(
+    needsOneRm ? { d1: halfKg(oneRm * 0.65), d2: halfKg(oneRm * 0.7) } : null
+  );
+
   const startPlan = async () => {
     saving = true;
     error = '';
     try {
       // Premade plans map 1:1 onto the seeded plan_templates rows.
-      if (picked && !generated) await API.setProgram(picked.id);
+      if (picked && !generated) await API.setProgram(picked.id, needsOneRm ? oneRm : 0);
       await applyPlan(); // re-read program + today's workout from the server
       close();
     } catch (e) {
-      error = e.status === 0 ? $t('plan.backendDown') : $t('plan.startFailed', { msg: e.message });
+      error =
+        e.status === 0
+          ? $t('plan.backendDown')
+          : e.code === 'one_rm_out_of_range'
+            ? $t('plan.oneRmRange', { min: plan.minOneRm, max: plan.maxOneRm })
+            : $t('plan.startFailed', { msg: e.message });
       saving = false;
     }
   };
@@ -203,7 +232,7 @@
   <Screen>
     {#snippet footer()}
       <div style="display:flex; flex-direction:column; gap:10px;">
-        <Btn block lg onclick={startPlan} disabled={saving}>{saving ? $t('plan.starting') : $t('plan.startPlan')}</Btn>
+        <Btn block lg onclick={startPlan} disabled={saving || !oneRmOk}>{saving ? $t('plan.starting') : $t('plan.startPlan')}</Btn>
         <button class="btn btn--soft btn--block" onclick={close}>{$t('plan.maybeLater')}</button>
         {#if error}
           <p class="t-sub" style="font-size:12.5px; color:var(--down, #d1495b); text-align:center; margin:0;">{error}</p>
@@ -217,6 +246,30 @@
         <div class="t-title" style="font-size:26px; margin-top:4px;">{shown(plan, 'nameKey', 'name')}</div>
         <div class="t-sub" style="font-size:14px; margin-top:3px;">{shown(plan, 'focusKey', 'focus')}</div>
       </div>
+      {#if needsOneRm}
+        <div class="card" style="padding:16px 18px; display:flex; flex-direction:column; gap:14px;">
+          <div>
+            <div class="t-label" style="color:var(--brand);">{$t('plan.oneRmLabel')}</div>
+            <div class="t-sub" style="font-size:13px; margin-top:4px;">{$t('plan.oneRmHelp')}</div>
+          </div>
+
+          <Stepper value={oneRm} onChange={(v) => (oneRm = v)} step={2.5} min={0} unit="kg" big />
+
+          {#if oneRmOk}
+            <!-- I carichi della settimana 1, per confermare a colpo d'occhio
+                 che il massimale digitato è quello giusto. -->
+            <div class="row" style="gap:8px; justify-content:center; flex-wrap:wrap;">
+              {#each [[$t('plan.oneRmDay1'), week1.d1], [$t('plan.oneRmDay2'), week1.d2]] as [label, kg]}
+                <span style="font-size:11.5px; font-weight:700; color:var(--ink2); background:#F1F3F5; padding:5px 10px; border-radius:8px; white-space:nowrap;">{label} · <span class="t-num">{$num(kg)}</span> kg</span>
+              {/each}
+            </div>
+          {:else}
+            <p class="t-sub" style="font-size:12.5px; color:var(--down, #d1495b); text-align:center; margin:0;">
+              {$t('plan.oneRmRange', { min: plan.minOneRm, max: plan.maxOneRm })}
+            </p>
+          {/if}
+        </div>
+      {/if}
       <div class="card" style="padding:4px 18px;">
         {#each doneRows as r, i}
           <div class="row" style="justify-content:space-between; padding:14px 0; border-bottom:{i < doneRows.length - 1 ? '1px solid var(--line)' : 'none'};">
@@ -226,8 +279,8 @@
         {/each}
       </div>
       <div class="row" style="gap:8px; padding:12px 14px; background:var(--brand-tint); border-radius:14px;">
-        <span style="font-size:16px;">↻</span>
-        <span class="t-sub" style="font-size:12.5px; font-weight:700; color:var(--brand-ink);">{$t('plan.autoAdjust')}</span>
+        <span style="font-size:16px;">{needsOneRm ? '📋' : '↻'}</span>
+        <span class="t-sub" style="font-size:12.5px; font-weight:700; color:var(--brand-ink);">{needsOneRm ? $t('plan.prescribedLoads') : $t('plan.autoAdjust')}</span>
       </div>
     </div>
   </Screen>

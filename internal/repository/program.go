@@ -35,7 +35,8 @@ func (r *ProgramRepo) DB() *pgxpool.Pool { return r.db }
 
 func (r *ProgramRepo) GetTemplates(ctx context.Context) ([]model.PlanTemplate, error) {
 	rows, err := r.db.Query(ctx,
-		`SELECT id, name, goal, focus, level, days_per_week, session_min, total_weeks, glyph, tag
+		`SELECT id, name, goal, focus, level, days_per_week, session_min, total_weeks, glyph, tag,
+		        min_one_rm_kg, max_one_rm_kg
 		 FROM plan_templates ORDER BY name`)
 	if err != nil {
 		return nil, err
@@ -47,7 +48,8 @@ func (r *ProgramRepo) GetTemplates(ctx context.Context) ([]model.PlanTemplate, e
 	for rows.Next() {
 		var t model.PlanTemplate
 		if err := rows.Scan(&t.ID, &t.Name, &t.Goal, &t.Focus, &t.Level,
-			&t.DaysPerWeek, &t.SessionMin, &t.TotalWeeks, &t.Glyph, &t.Tag); err != nil {
+			&t.DaysPerWeek, &t.SessionMin, &t.TotalWeeks, &t.Glyph, &t.Tag,
+			&t.MinOneRM, &t.MaxOneRM); err != nil {
 			return nil, err
 		}
 		templates = append(templates, t)
@@ -59,12 +61,12 @@ func (r *ProgramRepo) GetActiveProgram(ctx context.Context, userID string) (*mod
 	p := &model.UserProgram{}
 	err := r.db.QueryRow(ctx,
 		`SELECT id, user_id, template_id, name, goal, level, days_per_week,
-		        total_weeks, is_active, started_at
+		        total_weeks, is_active, started_at, COALESCE(one_rm_kg, 0)
 		 FROM user_programs WHERE user_id = $1 AND is_active = TRUE
 		 ORDER BY started_at DESC LIMIT 1`,
 		userID,
 	).Scan(&p.ID, &p.UserID, &p.TemplateID, &p.Name, &p.Goal, &p.Level,
-		&p.DaysPerWeek, &p.TotalWeeks, &p.IsActive, &p.StartedAt)
+		&p.DaysPerWeek, &p.TotalWeeks, &p.IsActive, &p.StartedAt, &p.OneRMKg)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +101,20 @@ func (r *ProgramRepo) DeactivateAll(ctx context.Context, userID string) error {
 // Una template a blocco unico (tutte le righe a week_number = 1, com'era prima
 // della 009) si copia identica a prima e si ripete per tutto il programma:
 // GetWorkoutsForWeek ripiega sull'ultimo blocco definito.
-func (r *ProgramRepo) CreateFromTemplate(ctx context.Context, userID string, t model.PlanTemplate) (string, error) {
+// ErrOneRMOutOfRange: il massimale è fuori dalla finestra della template.
+var ErrOneRMOutOfRange = errors.New("massimale fuori dalla finestra prevista dalla template")
+
+func (r *ProgramRepo) CreateFromTemplate(ctx context.Context, userID string, t model.PlanTemplate, oneRM float64) (string, error) {
+	// Le template a carico prescritto valgono solo dentro la loro finestra: gli
+	// incrementi sono in chili pieni e non si riscalano, quindi fuori finestra
+	// le ultime settimane cadrebbero a percentuali che non stanno in piedi.
+	if t.MinOneRM != nil && oneRM < *t.MinOneRM {
+		return "", ErrOneRMOutOfRange
+	}
+	if t.MaxOneRM != nil && oneRM > *t.MaxOneRM {
+		return "", ErrOneRMOutOfRange
+	}
+
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return "", err
@@ -113,9 +128,9 @@ func (r *ProgramRepo) CreateFromTemplate(ctx context.Context, userID string, t m
 
 	var programID string
 	if err := tx.QueryRow(ctx,
-		`INSERT INTO user_programs (user_id, template_id, name, goal, level, days_per_week, total_weeks)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-		userID, t.ID, t.Name, t.Goal, t.Level, t.DaysPerWeek, t.TotalWeeks,
+		`INSERT INTO user_programs (user_id, template_id, name, goal, level, days_per_week, total_weeks, one_rm_kg)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7, NULLIF($8, 0)) RETURNING id`,
+		userID, t.ID, t.Name, t.Goal, t.Level, t.DaysPerWeek, t.TotalWeeks, oneRM,
 	).Scan(&programID); err != nil {
 		return "", err
 	}
@@ -141,8 +156,14 @@ func (r *ProgramRepo) CreateFromTemplate(ctx context.Context, userID string, t m
 		  RETURNING id, day_of_week, week_number
 		)
 		INSERT INTO program_workout_exercises
-		  (workout_id, exercise_id, sets, target_reps, rest_seconds, order_index)
-		SELECT nw.id, twe.exercise_id, twe.sets, twe.target_reps, twe.rest_seconds, twe.order_index
+		  (workout_id, exercise_id, sets, target_reps, rest_seconds, order_index, load_kg)
+		SELECT nw.id, twe.exercise_id, twe.sets, twe.target_reps, twe.rest_seconds, twe.order_index,
+		       -- Il carico prescritto si materializza qui, una volta, come già si
+		       -- copiano serie e ripetizioni: percentuale del massimale più la
+		       -- quota assoluta, arrotondata al mezzo chilo come nei fogli.
+		       CASE WHEN twe.load_pct IS NULL OR $3 = 0 THEN NULL
+		            ELSE ROUND((twe.load_pct * $3 + COALESCE(twe.load_offset_kg, 0)) * 2) / 2
+		       END
 		FROM new_workouts nw
 		JOIN template_workouts tw
 		  ON tw.template_id = $2
@@ -150,7 +171,7 @@ func (r *ProgramRepo) CreateFromTemplate(ctx context.Context, userID string, t m
 		 AND tw.week_number = nw.week_number
 		JOIN template_workout_exercises twe
 		  ON twe.template_workout_id = tw.id
-	`, programID, t.ID); err != nil {
+	`, programID, t.ID, oneRM); err != nil {
 		return "", err
 	}
 
@@ -200,7 +221,8 @@ func (r *ProgramRepo) GetWorkoutsForWeek(ctx context.Context, programID string, 
 func (r *ProgramRepo) GetExercisesForWorkout(ctx context.Context, workoutID string) ([]model.WorkoutExercise, error) {
 	rows, err := r.db.Query(ctx,
 		`SELECT pwe.id, pwe.exercise_id, e.name, e.muscle_group, e.category,
-		        pwe.sets, pwe.target_reps, pwe.rest_seconds, pwe.order_index
+		        pwe.sets, pwe.target_reps, pwe.rest_seconds, pwe.order_index,
+		        COALESCE(pwe.load_kg, 0)
 		 FROM program_workout_exercises pwe
 		 JOIN exercises e ON e.id = pwe.exercise_id
 		 WHERE pwe.workout_id = $1
@@ -216,7 +238,7 @@ func (r *ProgramRepo) GetExercisesForWorkout(ctx context.Context, workoutID stri
 	for rows.Next() {
 		var ex model.WorkoutExercise
 		if err := rows.Scan(&ex.ID, &ex.ExerciseID, &ex.Name, &ex.Muscle, &ex.Category,
-			&ex.Sets, &ex.TargetReps, &ex.RestSeconds, &ex.OrderIndex); err != nil {
+			&ex.Sets, &ex.TargetReps, &ex.RestSeconds, &ex.OrderIndex, &ex.LoadKg); err != nil {
 			return nil, err
 		}
 		exercises = append(exercises, ex)

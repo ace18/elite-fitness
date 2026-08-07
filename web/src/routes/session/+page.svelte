@@ -270,7 +270,15 @@
               {/each}
             </div>
           </div>
-          <div class="t-sub" style="font-size:13.5px; margin-top:8px;">{$t('session.setOf', { i: setIndex + 1, n: ex.sets })} <b style="color:var(--ink2);">{$weightReps(ex.last, ex.targetReps)}</b></div>
+          <!-- "la volta scorsa 0 kg" su un esercizio mai fatto non vuol dire
+               niente: senza storico si dice solo a che set si è. -->
+          <div class="t-sub" style="font-size:13.5px; margin-top:8px;">
+            {#if ex.last > 0}
+              {$t('session.setOf', { i: setIndex + 1, n: ex.sets })} <b style="color:var(--ink2);">{$weightReps(ex.last, ex.targetReps)}</b>
+            {:else}
+              {$t('session.setOfPlain', { i: setIndex + 1, n: ex.sets })}
+            {/if}
+          </div>
 
           {#if logged[exIndex].length > 0}
             <div class="row" style="gap:7px; margin-top:12px; flex-wrap:wrap;">
@@ -285,7 +293,10 @@
             <div class="t-label" style="margin-bottom:6px;">{$t('session.weight')}</div>
             <Stepper value={weight} onChange={(v) => (weight = v)} step={1} unit="kg" big />
             <div style="text-align:center; margin-top:8px;">
-              {#if showSuggested}
+              {#if !ex?.suggested}
+                <!-- Niente da proporre: si tace invece di dire "0 kg". -->
+                <span class="chip" style="background:transparent; color:var(--ink4); cursor:default;">{$t('session.noSuggestion')}</span>
+              {:else if showSuggested}
                 <button class="chip chip--tint" onclick={() => (weight = ex.suggested)}>{$t('session.backToSuggested', { n: ex.suggested })}</button>
               {:else}
                 <span class="chip" style="background:transparent; color:var(--ink3); cursor:default;">{$t('session.onPlan', { n: ex.suggested })}</span>

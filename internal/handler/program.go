@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"time"
@@ -92,6 +93,9 @@ func (h *ProgramHandler) SetProgram(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	var body struct {
 		TemplateID string `json:"templateId"`
+		// OneRMKg serve solo alle template a carico prescritto. Zero (assente)
+		// per tutte le altre.
+		OneRMKg float64 `json:"oneRmKg"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.TemplateID == "" {
 		jsonError(w, ErrTemplateRequired, http.StatusBadRequest)
@@ -116,8 +120,14 @@ func (h *ProgramHandler) SetProgram(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Crea il programma e ci copia dentro i workout della template.
-	programID, err := h.programs.CreateFromTemplate(r.Context(), userID, *found)
+	programID, err := h.programs.CreateFromTemplate(r.Context(), userID, *found, body.OneRMKg)
 	if err != nil {
+		// Massimale fuori finestra è un errore dell'utente, non del server: la
+		// template lo dichiara e il client può dirlo prima di riprovare.
+		if errors.Is(err, repository.ErrOneRMOutOfRange) {
+			jsonError(w, ErrOneRMRange, http.StatusBadRequest)
+			return
+		}
 		jsonError(w, ErrDB, http.StatusInternalServerError)
 		return
 	}

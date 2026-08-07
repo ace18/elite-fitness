@@ -145,7 +145,14 @@
                 <div style="text-align:right; flex:0 0 auto;">
                   <div class="t-mono" style="font-size:14px; font-weight:800; white-space:nowrap;">{ex.sets} × {ex.targetReps}</div>
                   <div class="t-mono t-sub" style="font-size:11.5px; font-weight:700; white-space:nowrap; display:flex; align-items:center; gap:4px; justify-content:flex-end;">
-                    {ex.suggested} kg {#if up}<span style="color:var(--up);">↑</span>{/if}
+                    <!-- Nessun peso da proporre: esercizio mai fatto e nessun
+                         carico prescritto. Un "0 kg" si legge come "carica
+                         zero", che non è quello che si intende. -->
+                    {#if ex.suggested > 0}
+                      {ex.suggested} kg {#if up}<span style="color:var(--up);">↑</span>{/if}
+                    {:else}
+                      <span style="color:var(--ink4);">—</span>
+                    {/if}
                   </div>
                 </div>
               </div>

@@ -2,6 +2,7 @@ package repository_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -26,7 +27,7 @@ func TestCreateFromTemplateKeepsBlocksSeparate(t *testing.T) {
 
 	// str-5x5: 12 settimane, tre blocchi (1, 5, 9), tre giorni ciascuno.
 	tmpl := templateByID(t, pool, "str-5x5")
-	programID, err := repo.CreateFromTemplate(ctx, userID, tmpl)
+	programID, err := repo.CreateFromTemplate(ctx, userID, tmpl, 0)
 	if err != nil {
 		t.Fatalf("CreateFromTemplate: %v", err)
 	}
@@ -83,7 +84,7 @@ func TestCreateFromTemplateCopiesEachBlockScheme(t *testing.T) {
 	userID := makeUser(t, pool, uniqueEmail("schemi"))
 
 	tmpl := templateByID(t, pool, "str-5x5")
-	programID, err := repo.CreateFromTemplate(ctx, userID, tmpl)
+	programID, err := repo.CreateFromTemplate(ctx, userID, tmpl, 0)
 	if err != nil {
 		t.Fatalf("CreateFromTemplate: %v", err)
 	}
@@ -122,7 +123,7 @@ func TestGetWorkoutsForWeekCarriesBlockForward(t *testing.T) {
 	userID := makeUser(t, pool, uniqueEmail("riporto"))
 
 	tmpl := templateByID(t, pool, "str-5x5")
-	programID, err := repo.CreateFromTemplate(ctx, userID, tmpl)
+	programID, err := repo.CreateFromTemplate(ctx, userID, tmpl, 0)
 	if err != nil {
 		t.Fatalf("CreateFromTemplate: %v", err)
 	}
@@ -235,5 +236,116 @@ func TestFindOrCreateExerciseStoresCategory(t *testing.T) {
 		if got != tc.want {
 			t.Errorf("categoria %q -> in tabella %q, volevo %q", tc.given, got, tc.want)
 		}
+	}
+}
+
+// Il ciclo di squat prescrive il carico invece di lasciarlo autoregolare. Il
+// conto si fa una volta sola, alla creazione: percentuale del massimale più la
+// quota assoluta. Qui si verifica contro i numeri dei fogli del coach.
+func TestCreateFromTemplateMaterializesPrescribedLoads(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	repo := repository.NewProgramRepo(pool)
+
+	for _, tc := range []struct {
+		template string
+		oneRM    float64
+		// settimana, giorno, ordine -> carico atteso (dai PDF)
+		want map[[3]int]float64
+	}{
+		{
+			template: "squat-170", oneRM: 170,
+			want: map[[3]int]float64{
+				{1, 0, 0}: 110.5, {1, 3, 0}: 119,
+				{4, 3, 0}: 149, {5, 3, 0}: 155.5, {6, 0, 0}: 155.5,
+				{7, 0, 0}: 165.5, {7, 3, 0}: 170.5,
+				{8, 0, 0}: 140, {8, 0, 1}: 160,
+				{8, 3, 0}: 145, {8, 3, 1}: 155, {8, 3, 2}: 170,
+			},
+		},
+		{
+			template: "squat-180", oneRM: 180,
+			want: map[[3]int]float64{
+				{1, 0, 0}: 117, {1, 3, 0}: 126,
+				{5, 3, 0}: 167, {6, 0, 0}: 162, {6, 3, 0}: 172,
+				{7, 0, 0}: 177, {7, 3, 0}: 182,
+				{8, 0, 0}: 150, {8, 0, 1}: 170, {8, 3, 2}: 180,
+			},
+		},
+	} {
+		t.Run(tc.template, func(t *testing.T) {
+			userID := makeUser(t, pool, uniqueEmail(tc.template))
+			programID, err := repo.CreateFromTemplate(ctx, userID,
+				templateByID(t, pool, tc.template), tc.oneRM)
+			if err != nil {
+				t.Fatalf("CreateFromTemplate: %v", err)
+			}
+
+			for key, want := range tc.want {
+				var got *float64
+				if err := pool.QueryRow(ctx, `
+					SELECT pwe.load_kg
+					FROM program_workouts pw
+					JOIN program_workout_exercises pwe ON pwe.workout_id = pw.id
+					WHERE pw.program_id = $1 AND pw.week_number = $2
+					  AND pw.day_of_week = $3 AND pwe.order_index = $4`,
+					programID, key[0], key[1], key[2]).Scan(&got); err != nil {
+					t.Fatalf("w%dd%d#%d: %v", key[0], key[1], key[2], err)
+				}
+				if got == nil || *got != want {
+					t.Errorf("w%dd%d#%d = %v, volevo %v", key[0], key[1], key[2], got, want)
+				}
+			}
+
+			// L'ultima singola del test è aperta ("proceed to maximum"): niente
+			// carico prescritto, lo sceglie l'atleta.
+			var open *float64
+			if err := pool.QueryRow(ctx, `
+				SELECT pwe.load_kg FROM program_workouts pw
+				JOIN program_workout_exercises pwe ON pwe.workout_id = pw.id
+				WHERE pw.program_id = $1 AND pw.week_number = 8
+				  AND pw.day_of_week = 3 AND pwe.order_index = 3`,
+				programID).Scan(&open); err != nil {
+				t.Fatalf("singola aperta: %v", err)
+			}
+			if open != nil {
+				t.Errorf("singola finale = %v, volevo nessun carico prescritto", *open)
+			}
+
+			// Il complementare resta autoregolato.
+			var assist *float64
+			if err := pool.QueryRow(ctx, `
+				SELECT pwe.load_kg FROM program_workouts pw
+				JOIN program_workout_exercises pwe ON pwe.workout_id = pw.id
+				WHERE pw.program_id = $1 AND pw.week_number = 1
+				  AND pw.day_of_week = 0 AND pwe.order_index = 1`,
+				programID).Scan(&assist); err != nil {
+				t.Fatalf("complementare: %v", err)
+			}
+			if assist != nil {
+				t.Errorf("complementare = %v, volevo nessun carico prescritto", *assist)
+			}
+		})
+	}
+}
+
+// Gli incrementi sono in chili pieni e non si riscalano: fuori finestra la
+// template va rifiutata, non adattata.
+func TestCreateFromTemplateRejectsAOneRMOutsideTheWindow(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	repo := repository.NewProgramRepo(pool)
+	tmpl := templateByID(t, pool, "squat-170")
+
+	for _, oneRM := range []float64{120, 144.9, 171} {
+		userID := makeUser(t, pool, uniqueEmail("fuorifinestra"))
+		if _, err := repo.CreateFromTemplate(ctx, userID, tmpl, oneRM); !errors.Is(err, repository.ErrOneRMOutOfRange) {
+			t.Errorf("massimale %v: errore = %v, volevo ErrOneRMOutOfRange", oneRM, err)
+		}
+	}
+	// Dentro finestra passa.
+	userID := makeUser(t, pool, uniqueEmail("infinestra"))
+	if _, err := repo.CreateFromTemplate(ctx, userID, tmpl, 145); err != nil {
+		t.Errorf("massimale 145: %v", err)
 	}
 }

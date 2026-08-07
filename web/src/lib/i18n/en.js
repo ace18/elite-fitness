@@ -161,6 +161,12 @@ export const en = {
     buildMyPlan: 'Build my plan →',
     backendDown: 'Backend unreachable.',
     startFailed: 'Could not start the plan: {msg}',
+    oneRmLabel: 'YOUR CURRENT 1RM',
+    oneRmHelp: 'This cycle prescribes the weight for every session, so it needs your tested back squat max.',
+    oneRmDay1: 'Week 1 · Day 1',
+    oneRmDay2: 'Week 1 · Day 2',
+    oneRmRange: 'This cycle is built for a max between {min} and {max} kg.',
+    prescribedLoads: 'Every session has a set weight, calculated from your max.',
     generateFailed: 'Plan generation failed: {msg}',
     // questionnaire
     q: {
@@ -212,10 +218,12 @@ export const en = {
   session: {
     exerciseOf: 'EXERCISE {i} / {n} · {muscle}',
     setOf: 'Set {i} of {n} · last time',
+    setOfPlain: 'Set {i} of {n}',
     weight: 'Weight',
     reps: 'Reps',
     backToSuggested: '↻ Back to suggested · {n} kg',
     onPlan: '✓ on plan · suggested {n} kg',
+    noSuggestion: 'no suggested weight — pick your own',
     rateToLog: 'Rate effort to log',
     finishWorkout: 'Finish workout ✓',
     logSet: 'Log set ✓',

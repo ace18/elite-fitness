@@ -48,7 +48,7 @@ func TestSuggestionCrossesBlockBoundary(t *testing.T) {
 	}
 
 	tmpl := templateNamed(t, programs, "str-5x5")
-	programID, err := programs.CreateFromTemplate(ctx, userID, tmpl)
+	programID, err := programs.CreateFromTemplate(ctx, userID, tmpl, 0)
 	if err != nil {
 		t.Fatalf("CreateFromTemplate: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestSuggestionStaysAutoregulatedInsideABlock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	programID, err := programs.CreateFromTemplate(ctx, userID, templateNamed(t, programs, "str-5x5"))
+	programID, err := programs.CreateFromTemplate(ctx, userID, templateNamed(t, programs, "str-5x5"), 0)
 	if err != nil {
 		t.Fatalf("CreateFromTemplate: %v", err)
 	}
@@ -256,7 +256,7 @@ func TestIsolationWorkUsesTheSmallIncrement(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	programID, err := programs.CreateFromTemplate(ctx, userID, templateNamed(t, programs, "ppl-hyp"))
+	programID, err := programs.CreateFromTemplate(ctx, userID, templateNamed(t, programs, "ppl-hyp"), 0)
 	if err != nil {
 		t.Fatalf("CreateFromTemplate: %v", err)
 	}

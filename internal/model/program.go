@@ -13,21 +13,29 @@ type PlanTemplate struct {
 	TotalWeeks  int     `json:"totalWeeks"`
 	Glyph       string  `json:"glyph"`
 	Tag         *string `json:"tag,omitempty"`
+	// MinOneRM/MaxOneRM delimitano i massimali per cui la template ha senso.
+	// Nil su quasi tutte: solo i cicli a carico prescritto, dove gli
+	// incrementi sono assoluti e quindi non si adattano fuori finestra.
+	MinOneRM *float64 `json:"minOneRm,omitempty"`
+	MaxOneRM *float64 `json:"maxOneRm,omitempty"`
 }
 
 type UserProgram struct {
-	ID          string         `json:"id"`
-	UserID      string         `json:"userId,omitempty"`
-	TemplateID  *string        `json:"templateId,omitempty"`
-	Name        string         `json:"name"`
-	Goal        string         `json:"goal"`
-	Level       string         `json:"level"`
-	DaysPerWeek int            `json:"daysPerWeek"`
-	TotalWeeks  int            `json:"totalWeeks"`
-	CurrentWeek int            `json:"week"`
-	IsActive    bool           `json:"isActive"`
-	StartedAt   time.Time      `json:"startedAt"`
-	Schedule    []ScheduleItem `json:"schedule,omitempty"`
+	ID          string  `json:"id"`
+	UserID      string  `json:"userId,omitempty"`
+	TemplateID  *string `json:"templateId,omitempty"`
+	Name        string  `json:"name"`
+	Goal        string  `json:"goal"`
+	Level       string  `json:"level"`
+	DaysPerWeek int     `json:"daysPerWeek"`
+	TotalWeeks  int     `json:"totalWeeks"`
+	CurrentWeek int     `json:"week"`
+	IsActive    bool    `json:"isActive"`
+	// OneRMKg è il massimale su cui sono stati calcolati i carichi, per i
+	// programmi che li prescrivono. Zero per tutti gli altri.
+	OneRMKg   float64        `json:"oneRmKg,omitempty"`
+	StartedAt time.Time      `json:"startedAt"`
+	Schedule  []ScheduleItem `json:"schedule,omitempty"`
 }
 
 // WeekAt calcola in che settimana del programma si è a una certa data.
@@ -124,14 +132,17 @@ type WorkoutExercise struct {
 	// Category è 'compound' o 'isolation'. Serve a sapere di quanto si può
 	// alzare il carico: su un complementare il disco più piccolo pesa molto di
 	// più in percentuale (vedi loadIncrement).
-	Category    string  `json:"category,omitempty"`
-	Sets        int     `json:"sets"`
-	TargetReps  int     `json:"targetReps"`
-	RestSeconds int     `json:"rest"`
-	OrderIndex  int     `json:"orderIndex"`
-	Last        float64 `json:"last"`
-	Suggested   float64 `json:"suggested"`
-	PrToBeat    float64 `json:"prToBeat,omitempty"`
+	Category    string `json:"category,omitempty"`
+	Sets        int    `json:"sets"`
+	TargetReps  int    `json:"targetReps"`
+	RestSeconds int    `json:"rest"`
+	OrderIndex  int    `json:"orderIndex"`
+	// LoadKg è il carico prescritto dal programma. Zero quando non c'è: in quel
+	// caso il peso lo propone suggestNext dallo storico, come sempre.
+	LoadKg    float64 `json:"loadKg,omitempty"`
+	Last      float64 `json:"last"`
+	Suggested float64 `json:"suggested"`
+	PrToBeat  float64 `json:"prToBeat,omitempty"`
 }
 
 type TodayWorkout struct {

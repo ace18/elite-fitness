@@ -70,7 +70,14 @@ func (s *WorkoutService) BuildTodayWorkout(ctx context.Context, userID string) (
 			return nil, err
 		}
 		ex.Last = h.Last
-		ex.Suggested = suggestNext(h, ex.TargetReps, ex.Category)
+		// Un carico prescritto dal programma non si autoregola: il ciclo di
+		// squat decide lui quanto caricare a ogni seduta, e sovrascriverlo con
+		// una proposta dallo storico ne romperebbe la progressione.
+		if ex.LoadKg > 0 {
+			ex.Suggested = ex.LoadKg
+		} else {
+			ex.Suggested = suggestNext(h, ex.TargetReps, ex.Category)
+		}
 		if h.PR > 0 {
 			ex.PrToBeat = h.PR
 		}
