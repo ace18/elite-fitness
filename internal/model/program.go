@@ -117,10 +117,14 @@ type ProgramWorkout struct {
 }
 
 type WorkoutExercise struct {
-	ID          string  `json:"id"`
-	ExerciseID  string  `json:"exerciseId"`
-	Name        string  `json:"name"`
-	Muscle      string  `json:"muscle"`
+	ID         string `json:"id"`
+	ExerciseID string `json:"exerciseId"`
+	Name       string `json:"name"`
+	Muscle     string `json:"muscle"`
+	// Category è 'compound' o 'isolation'. Serve a sapere di quanto si può
+	// alzare il carico: su un complementare il disco più piccolo pesa molto di
+	// più in percentuale (vedi loadIncrement).
+	Category    string  `json:"category,omitempty"`
 	Sets        int     `json:"sets"`
 	TargetReps  int     `json:"targetReps"`
 	RestSeconds int     `json:"rest"`

@@ -45,15 +45,26 @@ type aiPlanOutput struct {
 }
 
 type aiWorkout struct {
-	Name      string       `json:"name"`
-	Focus     string       `json:"focus"`
-	DayOfWeek int          `json:"dayOfWeek"`
-	Exercises []aiExercise `json:"exercises"`
+	Name      string `json:"name"`
+	Focus     string `json:"focus"`
+	DayOfWeek int    `json:"dayOfWeek"`
+	// WeekNumber è la settimana da cui questo allenamento entra in vigore, non
+	// l'unica in cui vale: resta valido finché non ne arriva uno definito più
+	// avanti (vedi GetWorkoutsForWeek). Un piano che non periodizza mette 1
+	// ovunque e si ripete per tutta la durata, come prima della 009.
+	WeekNumber int          `json:"weekNumber"`
+	Exercises  []aiExercise `json:"exercises"`
 }
 
 type aiExercise struct {
 	Name        string `json:"name"`
 	MuscleGroup string `json:"muscleGroup"`
+	// Category distingue i fondamentali dai complementari. Non è cosmetica:
+	// da lì si ricava di quanto alzare il carico fra una seduta e l'altra
+	// (vedi loadIncrement). Senza, tutto quel che genera il modello finirebbe
+	// sul default 'compound' della colonna e i complementari salirebbero a
+	// scatti da 2.5 kg.
+	Category    string `json:"category"`
 	Sets        int    `json:"sets"`
 	TargetReps  int    `json:"targetReps"`
 	RestSeconds int    `json:"restSeconds"`
@@ -74,19 +85,32 @@ var planToolSchema = anthropic.ToolParam{
 				"type": "array",
 				"items": map[string]interface{}{
 					"type":     "object",
-					"required": []string{"name", "focus", "dayOfWeek", "exercises"},
+					"required": []string{"name", "focus", "dayOfWeek", "weekNumber", "exercises"},
 					"properties": map[string]interface{}{
 						"name":      map[string]interface{}{"type": "string"},
 						"focus":     map[string]interface{}{"type": "string"},
 						"dayOfWeek": map[string]interface{}{"type": "integer", "description": "0=Monday, 6=Sunday"},
+						"weekNumber": map[string]interface{}{
+							"type": "integer",
+							"description": "1-based week this workout takes effect FROM. It stays in " +
+								"effect until another workout for the same day is defined at a later " +
+								"week, so a block is described once and repeats. Use 1 for a program " +
+								"with no periodization.",
+						},
 						"exercises": map[string]interface{}{
 							"type": "array",
 							"items": map[string]interface{}{
 								"type":     "object",
-								"required": []string{"name", "muscleGroup", "sets", "targetReps", "restSeconds"},
+								"required": []string{"name", "muscleGroup", "category", "sets", "targetReps", "restSeconds"},
 								"properties": map[string]interface{}{
 									"name":        map[string]interface{}{"type": "string"},
 									"muscleGroup": map[string]interface{}{"type": "string"},
+									"category": map[string]interface{}{
+										"type": "string",
+										"enum": []string{"compound", "isolation"},
+										"description": "compound for multi-joint lifts (squat, bench, row), " +
+											"isolation for single-joint work (curls, lateral raises, pushdowns).",
+									},
 									"sets":        map[string]interface{}{"type": "integer"},
 									"targetReps":  map[string]interface{}{"type": "integer"},
 									"restSeconds": map[string]interface{}{"type": "integer"},
@@ -112,14 +136,31 @@ func (s *AIService) GeneratePlan(ctx context.Context, userID string, input Gener
 // requestPlan è la sola parte che parla con Claude: separata da savePlan così
 // si può testare senza database (vedi ai_test.go).
 func (s *AIService) requestPlan(ctx context.Context, input GeneratePlanInput) (aiPlanOutput, error) {
+	// Il prompt chiede blocchi, non settimane sciolte: una settimana definita
+	// vale finché non ne arriva un'altra, quindi un 12 settimane si descrive con
+	// due o tre blocchi invece che con dodici copie quasi identiche — che
+	// costerebbero token e uscirebbero comunque incoerenti fra loro.
 	prompt := fmt.Sprintf(
 		`You are an expert strength and conditioning coach.
 Create a complete, evidence-based training program for:
 - Goal: %s | Level: %s | Days/week: %d | Session length: %d min
 %s
-Generate a realistic, progressive program with appropriate exercise selection, volume, and rest periods.
+Generate a realistic, periodized program with appropriate exercise selection, volume, and rest periods.
 Use standard barbell/dumbbell/cable/bodyweight exercises. DayOfWeek: 0=Monday, 1=Tuesday, ... 6=Sunday.
-Pick %d consecutive weekdays starting Monday.`,
+Pick %d consecutive weekdays starting Monday, and use the same weekdays in every block.
+
+Structure the program as training BLOCKS, not as one week repeated and not as every
+week spelled out. Each workout carries the weekNumber it takes effect from, and stays
+in effect until the same weekday is defined again at a later week. So:
+- Emit every training day once at weekNumber 1.
+- Emit them again only at each week where the set/rep scheme actually changes — e.g.
+  an accumulation block at week 1 and an intensification block partway through,
+  moving from higher reps and moderate load toward lower reps and heavier load.
+- Split totalWeeks into 2 or 3 blocks of a few weeks each; never more than 4 blocks,
+  and no block may start at a week beyond totalWeeks.
+- Keep exercise selection largely stable across blocks; it is the sets, reps and rest
+  that periodize. Loads are autoregulated from the athlete's logged sets, so do not
+  encode weights anywhere.`,
 		input.Goal, input.Level, input.Days, input.Length,
 		notesLine(input.Notes),
 		input.Days,
@@ -190,18 +231,20 @@ func (s *AIService) savePlan(ctx context.Context, userID string, plan aiPlanOutp
 		return nil, err
 	}
 
+	layout := layoutWorkouts(plan.Workouts)
+
 	for i, w := range plan.Workouts {
 		var workoutID string
 		if err := tx.QueryRow(ctx,
-			`INSERT INTO program_workouts (program_id, name, focus, day_of_week, order_in_week)
-			 VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-			programID, w.Name, w.Focus, w.DayOfWeek, i,
+			`INSERT INTO program_workouts (program_id, name, focus, day_of_week, week_number, order_in_week)
+			 VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+			programID, w.Name, w.Focus, w.DayOfWeek, layout[i].Week, layout[i].OrderInWeek,
 		).Scan(&workoutID); err != nil {
 			return nil, err
 		}
 
 		for j, ex := range w.Exercises {
-			exID, err := s.programs.FindOrCreateExercise(ctx, tx, ex.Name, ex.MuscleGroup)
+			exID, err := s.programs.FindOrCreateExercise(ctx, tx, ex.Name, ex.MuscleGroup, ex.Category)
 			if err != nil {
 				return nil, err
 			}
@@ -221,6 +264,43 @@ func (s *AIService) savePlan(ctx context.Context, userID string, plan aiPlanOutp
 	}
 
 	return s.programs.GetActiveProgram(ctx, userID)
+}
+
+// workoutPlacement dice in che settimana e in che posizione va scritto un
+// allenamento del piano.
+type workoutPlacement struct {
+	Week        int
+	OrderInWeek int
+}
+
+// layoutWorkouts decide settimana e ordine di ogni allenamento restituito dal
+// modello. Il risultato è parallelo a `workouts`.
+//
+// Due cose che la risposta del modello non garantisce da sola:
+//
+// La settimana viene portata ad almeno 1. Il campo è `required` nello schema,
+// ma un modello che lo omettesse — o mandasse 0 — scriverebbe righe a settimana
+// 0, che GetWorkoutsForWeek sceglierebbe comunque per la settimana 1 (0 <= 1).
+// Il piano sembrerebbe funzionare finché qualcuno non definisce un blocco vero,
+// e a quel punto il blocco 0 resterebbe appiccicato davanti.
+//
+// order_in_week riparte da zero a ogni blocco, perché è l'ordine dentro la
+// settimana e GetWorkoutsForWeek ordina su un insieme già filtrato per
+// settimana. Con un indice globale il secondo blocco avrebbe indici 3,4,5:
+// funzionerebbe per caso, essendo comunque crescenti, ma il "terzo allenamento
+// della settimana" avrebbe scritto 5.
+func layoutWorkouts(workouts []aiWorkout) []workoutPlacement {
+	placements := make([]workoutPlacement, len(workouts))
+	nextOrder := map[int]int{}
+	for i, w := range workouts {
+		week := w.WeekNumber
+		if week < 1 {
+			week = 1
+		}
+		placements[i] = workoutPlacement{Week: week, OrderInWeek: nextOrder[week]}
+		nextOrder[week]++
+	}
+	return placements
 }
 
 func notesLine(notes string) string {

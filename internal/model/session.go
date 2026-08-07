@@ -98,11 +98,11 @@ type ProgressMetrics struct {
 	// corrente, e il giorno in cui riparte torna a zero.
 	TotalSessions int             `json:"totalSessions"`
 	WeekSessions  int             `json:"weekSessions"`
-	WeekGoal     int             `json:"weekGoal"`
-	BodyWeight   BodyWeightStats `json:"bodyWeight"`
-	Est1RM       Est1RMStats     `json:"est1RM"`
-	Volume       VolumeStats     `json:"volume"`
-	PRs          []PR            `json:"prs"`
+	WeekGoal      int             `json:"weekGoal"`
+	BodyWeight    BodyWeightStats `json:"bodyWeight"`
+	Est1RM        Est1RMStats     `json:"est1RM"`
+	Volume        VolumeStats     `json:"volume"`
+	PRs           []PR            `json:"prs"`
 	// Recent — gli ultimi allenamenti, per la lista "Recenti" della Home. Sta
 	// qui e non su un endpoint suo perché la Home carica già /api/progress:
 	// aggiungerci queste righe non costa una richiesta in più, e il service
